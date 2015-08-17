@@ -7,6 +7,7 @@ var Imap = require('imap');
 var inspect = require('util').inspect;
 var xoauth2gen;
 
+//Put in secret keys here DO IT
 xoauth2gen = require('xoauth2').createXOAuth2Generator({
     user: 'user@gmail.com',
     clientId: 'ID',
