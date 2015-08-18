@@ -7,7 +7,8 @@ var Imap = require('imap');
 var inspect = require('util').inspect;
 var xoauth2gen;
 
-//Use secret stuff here--commented
+//Use secret stuff here
+// --commented again
 xoauth2gen = require('xoauth2').createXOAuth2Generator({
     user: process.env.USER,
     clientId: process.env.CLIENTID,
