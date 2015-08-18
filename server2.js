@@ -65,50 +65,57 @@ function accessImap(token) {
             if (err) throw err;
             //console.log('Inbox has ' + box.messages.total + ' messages');
 
-            //For every message in the inbox
-            var f = imap.seq.fetch('1:' + box.messages.total, {
-                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
-                })
-                ;
-
-            f.on('message', function (msg, seqno) {
-                //console.log('Message #%d', seqno);
-                //var prefix = '(#' + seqno + ') ';
-                msg.on('body', function (stream, info) {
-                    //if (info.which === 'TEXT')
-                    //    console.log(prefix + 'Body [%s] found, %d total bytes', inspect(info.which), info.size);
-                    var buffer = '', count = 0;
-                    var header;
-                    stream.on('data', function (chunk) {
-                        count += chunk.length;
-                        buffer += chunk.toString('utf8');
-                        //    if (info.which === 'TEXT')
-                        //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
-                    });
-                    stream.once('end', function () {
-                        if (info.which !== 'TEXT') {
-                            header = Imap.parseHeader(buffer);
-                            if (process.env.FROM1 === header.from.toString())
-                                console.log('FROM1');
-                        }
-                        else
-                            var body = inspect(info.which);
-                    });
-                });
-                //msg.once('attributes', function (attrs) {
-                //    console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
-                //});
-                //msg.once('end', function () {
-                //    console.log(prefix + 'Finished');
-                //});
-            });
-            f.once('error', function (err) {
-                console.log('Fetch error: ' + err);
-            });
-            f.once('end', function () {
-                console.log('Done fetching all messages!');
+            //If the inbox has more than one message in it
+            if (box.messages.total === 0) {
+                console.log('Inbox has 0 messages');
                 imap.close();
-            });
+            }
+            else {
+                //For every message in the inbox
+                var f = imap.seq.fetch('1:' + box.messages.total, {
+                        bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
+                    })
+                    ;
+
+                f.on('message', function (msg, seqno) {
+                    //console.log('Message #%d', seqno);
+                    //var prefix = '(#' + seqno + ') ';
+                    msg.on('body', function (stream, info) {
+                        //if (info.which === 'TEXT')
+                        //    console.log(prefix + 'Body [%s] found, %d total bytes', inspect(info.which), info.size);
+                        var buffer = '', count = 0;
+                        var header;
+                        stream.on('data', function (chunk) {
+                            count += chunk.length;
+                            buffer += chunk.toString('utf8');
+                            //    if (info.which === 'TEXT')
+                            //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
+                        });
+                        stream.once('end', function () {
+                            if (info.which !== 'TEXT') {
+                                header = Imap.parseHeader(buffer);
+                                if (process.env.FROM1 === header.from.toString())
+                                    console.log('FROM1');
+                            }
+                            else
+                                var body = inspect(info.which);
+                        });
+                    });
+                    //msg.once('attributes', function (attrs) {
+                    //    console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
+                    //});
+                    //msg.once('end', function () {
+                    //    console.log(prefix + 'Finished');
+                    //});
+                });
+                f.once('error', function (err) {
+                    console.log('Fetch error: ' + err);
+                });
+                f.once('end', function () {
+                    console.log('Done fetching all messages!');
+                    imap.close();
+                });
+            }
         });
     });
 
