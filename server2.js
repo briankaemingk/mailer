@@ -30,11 +30,20 @@ function sendMail() {
         }
     }));
 
-    transporter.sendMail({
-        from: process.env.USER,
-        to: process.env.USER,
-        subject: 'hello world!',
-        text: 'Authenticated with OAuth2'
+    // setup e-mail data
+    var mail_opts = {
+        from: process.env.USER, // sender address
+        to: process.env.USER, // list of receivers
+        subject: 'Hello ?', // Subject line
+        text: 'Hello world ?', // plaintext body
+        html: '<b>Hello world ?</b>' // html body
+    };
+
+    transporter.sendMail(mail_opts, function (error, info) {
+        if (error) {
+            return console.log(error);
+        }
+        console.log('Message sent: ' + info.response);
     });
 }
 
