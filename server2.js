@@ -7,12 +7,11 @@ var Imap = require('imap');
 var inspect = require('util').inspect;
 var xoauth2gen;
 
-//Put in secret keys here
 xoauth2gen = require('xoauth2').createXOAuth2Generator({
-    user: 'user@gmail.com',
-    clientId: 'ID',
-    clientSecret: 'secret',
-    refreshToken: 'refresh'
+    user: process.env.USER,
+    clientId: process.env.CLIENTID,
+    clientSecret: process.env.CLIENTSECRET,
+    refreshToken: process.env.REFRESHTOKEN
 });
 
 
@@ -36,8 +35,8 @@ var transporter = nodemailer.createTransport(({
 function sendMail() {
 // send mail
     transporter.sendMail({
-        from: 'brian.e.k@gmail.com',
-        to: 'brian.e.k@gmail.com',
+        from: process.env.USER,
+        to: process.env.USER,
         subject: 'hello world!',
         text: 'Authenticated with OAuth2'
     });
