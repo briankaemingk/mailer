@@ -4,5 +4,24 @@
   "dependencies": {
     "nodemailer": "1.0",
     "express": "~4.5.1"
+  },
+  "description": "gmail filtering app by bk",
+  "main": "server2.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/briankaemingk/mailer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/briankaemingk/mailer/issues"
+  },
+  "homepage": "https://github.com/briankaemingk/mailer#readme",
+  "engines": {
+    "node": "0.12.7"
   }
 }
