@@ -2,14 +2,12 @@
  * Created by kaemibr on 8/14/2015.
  */
 var nodemailer = require('nodemailer');
-var xoauth2 = require('xoauth2');
+var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
 var inspect = require('util').inspect;
-var xoauth2gen;
+//var xoauth2gen;
 
-//Use secret stuff here
-// --commented again
-xoauth2gen = require('xoauth2').createXOAuth2Generator({
+xoauth2gen = xoauth2gen.createXOAuth2Generator({
     user: process.env.USER,
     clientId: process.env.CLIENTID,
     clientSecret: process.env.CLIENTSECRET,
@@ -18,7 +16,7 @@ xoauth2gen = require('xoauth2').createXOAuth2Generator({
 
 
 // SMTP/IMAP
-var myToken = xoauth2gen.getToken(function (err, token) {
+xoauth2gen.getToken(function (err, token) {
     if (err) {
         return console.log(err);
     }
@@ -70,7 +68,7 @@ function accessImap(token) {
 
             f.on('message', function (msg, seqno) {
                 //console.log('Message #%d', seqno);
-                var prefix = '(#' + seqno + ') ';
+                //var prefix = '(#' + seqno + ') ';
                 msg.on('body', function (stream, info) {
                     //if (info.which === 'TEXT')
                     //    console.log(prefix + 'Body [%s] found, %d total bytes', inspect(info.which), info.size);
@@ -103,7 +101,7 @@ function accessImap(token) {
             });
             f.once('end', function () {
                 console.log('Done fetching all messages!');
-                imap.end();
+                imap.close();
             });
         });
     });
@@ -115,6 +113,5 @@ function accessImap(token) {
     imap.once('end', function () {
         console.log('Connection ended');
     });
-
     imap.connect();
 }
