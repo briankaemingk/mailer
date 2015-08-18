@@ -8,6 +8,7 @@ var inspect = require('util').inspect;
 var xoauth2gen;
 
 //Use secret stuff here
+//commenting this well
 xoauth2gen = require('xoauth2').createXOAuth2Generator({
     user: process.env.USER,
     clientId: process.env.CLIENTID,
