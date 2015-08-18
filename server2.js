@@ -5,7 +5,6 @@ var nodemailer = require('nodemailer');
 var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
 var inspect = require('util').inspect;
-//var xoauth2gen;
 
 xoauth2gen = xoauth2gen.createXOAuth2Generator({
     user: process.env.USER,
@@ -15,7 +14,7 @@ xoauth2gen = xoauth2gen.createXOAuth2Generator({
 });
 
 
-// SMTP/IMAP
+//Get login token
 xoauth2gen.getToken(function (err, token) {
     if (err) {
         return console.log(err);
@@ -23,17 +22,14 @@ xoauth2gen.getToken(function (err, token) {
     accessImap(token);
 });
 
-
-// login
-var transporter = nodemailer.createTransport(({
-    service: 'gmail',
-    auth: {
-        xoauth2: xoauth2gen
-    }
-}));
-
 function sendMail() {
-// send mail
+    var transporter = nodemailer.createTransport(({
+        service: 'gmail',
+        auth: {
+            xoauth2: xoauth2gen
+        }
+    }));
+
     transporter.sendMail({
         from: process.env.USER,
         to: process.env.USER,
