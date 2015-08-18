@@ -88,7 +88,8 @@ function accessImap(token) {
                     stream.once('end', function () {
                         if (info.which !== 'TEXT') {
                             header = Imap.parseHeader(buffer);
-                            console.log(header.subject.toString());
+                            if (process.env.FROM1 === header.from.toString())
+                                console.log('FROM1');
                         }
                         else
                             var body = inspect(info.which);
