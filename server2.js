@@ -23,14 +23,14 @@ xoauth2gen.getToken(function (err, token) {
     accessImap(token);
 });
 
-function sendMail(subject, body) {
-    var transporter = nodemailer.createTransport(({
-        service: 'gmail',
-        auth: {
-            xoauth2: xoauth2gen
-        }
-    }));
+var transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        xoauth2: xoauth2gen
+    }
+});
 
+function sendMail(subject, body) {
     // setup e-mail data
     var mail_opts = {
         from: process.env.USER, // sender address
@@ -139,10 +139,13 @@ function accessImap(token) {
                                 var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
                                 //console.log(subject);
                                 send_messages.push({subject: subject, body: message.body});
-                                //console.log('send ms: ' + send_messages[0].subject);
+                                console.log('send ms: ' + send_messages[0].subject);
                             }
                         });
 
+                        send_messages.forEach(function (message) {
+
+                        });
 
                         //imap.close();
                     });
