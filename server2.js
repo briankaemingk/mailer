@@ -5,6 +5,7 @@ var nodemailer = require('nodemailer');
 var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
 var inspect = require('util').inspect;
+var imap;
 
 xoauth2gen = xoauth2gen.createXOAuth2Generator({
     user: process.env.USER,
@@ -22,7 +23,7 @@ xoauth2gen.getToken(function (err, token) {
     accessImap(token);
 });
 
-function sendMail() {
+function sendMail(subject, body) {
     var transporter = nodemailer.createTransport(({
         service: 'gmail',
         auth: {
@@ -34,9 +35,8 @@ function sendMail() {
     var mail_opts = {
         from: process.env.USER, // sender address
         to: process.env.USER, // list of receivers
-        subject: 'Hello ?', // Subject line
-        text: 'Hello world ?', // plaintext body
-        html: '<b>Hello world ?</b>' // html body
+        subject: subject, // Subject line
+        text: body // plaintext body
     };
 
     transporter.sendMail(mail_opts, function (error, info) {
@@ -47,9 +47,8 @@ function sendMail() {
     });
 }
 
-
 function accessImap(token) {
-    var imap = new Imap({
+    imap = new Imap({
         xoauth2: token,
         host: 'imap.gmail.com',
         port: 993,
@@ -72,6 +71,7 @@ function accessImap(token) {
                 }
                 else {
                     var messages = [];
+                    var send_messages = [];
 
                     //For every message in the inbox
                     var f = imap.seq.fetch('1:' + box.messages.total, {
@@ -107,10 +107,10 @@ function accessImap(token) {
                             ;
                         });
                         //msg.once('attributes', function (attrs) {
-                        //    console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
+                        //    console.log('Attributes: %s', inspect(attrs, false, 8));
                         //});
                         //msg.once('end', function () {
-                        //    console.log(prefix + 'Finished');
+                        //    console.log('Finished');
                         //});
                     });
                     f.once('error', function (err) {
@@ -118,7 +118,7 @@ function accessImap(token) {
                     });
                     f.once('end', function () {
                         //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
-                        var from1_patt_sub = /^(Notification - Your )(.*)(?= bill has arrived)/;
+                        var from1_patt_sub = /^Notification - Your (.*)(?= bill has arrived)/;
 
                         messages.forEach(function (message) {
                             //var subject = header.subject.toString();
@@ -128,16 +128,23 @@ function accessImap(token) {
                             if (process.env.FROM1 === message.header.from.toString() && from1_patt_sub.test(message.header.subject.toString())) {
                                 //console.log(message.header.subject.toString() + ' MATCHES');
 
+                                //Get bank
+                                var bank = message.header.subject.toString().match(from1_patt_sub)[1];
+
                                 //Finds the dollar amount and the due date of the payment
                                 var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
                                 var bill_amount = message.body.match(from1_patt_body)[1];
                                 var payment_date = message.body.match(from1_patt_body)[2];
                                 //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-
+                                var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
+                                //console.log(subject);
+                                send_messages.push({subject: subject, body: message.body});
+                                //console.log('send ms: ' + send_messages[0].subject);
                             }
                         });
 
-                        imap.close();
+
+                        //imap.close();
                     });
                 }
             }
@@ -151,6 +158,7 @@ function accessImap(token) {
 
     imap.once('end', function () {
         console.log('Connection ended');
+        imap.close();
     });
     imap.connect();
 }
