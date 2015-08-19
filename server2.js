@@ -144,7 +144,7 @@ function accessImap(token) {
                                 //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
                                 var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
                                 console.log(subject);
-                                send_messages.push({subject:subject, body:message.body});
+                                send_messages.push({subject: subject, body: message.body});
                             }
 
                         });
