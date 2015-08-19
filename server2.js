@@ -107,6 +107,7 @@ function accessImap(token) {
                                     }
                                     else {
                                         messages[seqno].body = buffer;
+                                        //console.log(buffer);
                                     }
                                 }
                             )
