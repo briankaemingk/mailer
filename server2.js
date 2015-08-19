@@ -57,7 +57,8 @@ function accessImap(token) {
         xoauth2: token,
         host: 'imap.gmail.com',
         port: 993,
-        tls: true
+        tls: true,
+        keepalive: false
     });
 
     function openInbox(cb) {
@@ -154,7 +155,7 @@ function accessImap(token) {
                             });
                         }
 
-                        //imap.close();
+                        imap.end();
                     });
                 }
             }
@@ -168,7 +169,6 @@ function accessImap(token) {
 
     imap.once('end', function () {
         console.log('Connection ended');
-        imap.close();
     });
     imap.connect();
 }
