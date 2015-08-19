@@ -71,9 +71,9 @@ function accessImap(token) {
                     imap.close();
                 }
                 else {
-                    //For every message in the inbox
-                    var emails = [];
+                    var messages = [];
 
+                    //For every message in the inbox
                     var f = imap.seq.fetch('1:' + box.messages.total, {
                             bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
                         })
@@ -82,9 +82,10 @@ function accessImap(token) {
                     f.on('message', function (msg, seqno) {
                         //console.log('Message #%d', seqno);
                         //var prefix = '(#' + seqno + ') ';
+                        var message = {};
+                        messages[seqno] = message;
+
                         msg.on('body', function (stream, info) {
-                            //if (info.which === 'TEXT')
-                            //    console.log(prefix + 'Body [%s] found, %d total bytes', inspect(info.which), info.size);
                             var buffer = '', count = 0;
                             var header;
                             stream.on('data', function (chunk) {
@@ -95,19 +96,12 @@ function accessImap(token) {
                             });
                             stream.once('end', function () {
                                     if (info.which !== 'TEXT') {
-                                        //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
                                         header = Imap.parseHeader(buffer);
-                                        var from1_patt = /^(Notification - Your )(.*)(?= bill has arrived)/;
-                                        var subject = header.subject.toString();
-
-                                        //if the message is from:FROM1 and the subject matches a string that starts with:
-                                        //"Notification - Your " and ends with " bill has arrived"
-                                        if (process.env.FROM1 === header.from.toString() && from1_patt.test(subject)) {
-                                            console.log(subject + ' MATCHES');
-                                        }
+                                        messages[seqno].header = header;
                                     }
-                                    else
-                                        var body = inspect(info.which);
+                                    else {
+                                        messages[seqno].body = buffer;
+                                    }
                                 }
                             )
                             ;
@@ -123,7 +117,19 @@ function accessImap(token) {
                         console.log('Fetch error: ' + err);
                     });
                     f.once('end', function () {
-                        console.log('Done fetching all messages!');
+                        //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
+                        var from1_patt = /^(Notification - Your )(.*)(?= bill has arrived)/;
+
+                        messages.forEach(function(message) {
+                            //var subject = header.subject.toString();
+
+                            //if the message is from:FROM1 and the subject matches a string that starts with:
+                            //"Notification - Your " and ends with " bill has arrived"
+                            if (process.env.FROM1 === message.header.from.toString() && from1_patt.test(message.header.subject.toString())){
+                                console.log(message.header.subject.toString() + ' MATCHES');
+                            }
+                        });
+
                         imap.close();
                     });
                 }
