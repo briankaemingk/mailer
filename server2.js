@@ -24,19 +24,20 @@ xoauth2gen.getToken(function (err, token) {
 });
 
 var transporter = nodemailer.createTransport({
-    service: 'gmail',
+    service: 'Gmail',
     auth: {
         xoauth2: xoauth2gen
-    }
+    },
+    debug: true
 });
 
-function sendMail(subject, body) {
+function sendMail(message) {
     // setup e-mail data
     var mail_opts = {
         from: process.env.USER, // sender address
         to: process.env.USER, // list of receivers
-        subject: subject, // Subject line
-        text: body // plaintext body
+        subject: message.subject.toString(), // Subject line
+        text: message.body // plaintext body
     };
 
     transporter.sendMail(mail_opts, function (error, info) {
@@ -44,6 +45,10 @@ function sendMail(subject, body) {
             return console.log(error);
         }
         console.log('Message sent: ' + info.response);
+
+        //info.once("sent", function(data){
+        //    console.log("Message was accepted by %s", data.domain);
+        //});
     });
 }
 
@@ -120,13 +125,13 @@ function accessImap(token) {
                         //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
                         var from1_patt_sub = /^Notification - Your (.*)(?= bill has arrived)/;
 
+
                         messages.forEach(function (message) {
-                            //var subject = header.subject.toString();
 
                             //if the message is from:FROM1 and the subject matches a string that starts with:
                             //"Notification - Your " and ends with " bill has arrived"
                             if (process.env.FROM1 === message.header.from.toString() && from1_patt_sub.test(message.header.subject.toString())) {
-                                //console.log(message.header.subject.toString() + ' MATCHES');
+                                console.log(message.header.subject.toString() + ' MATCHES');
 
                                 //Get bank
                                 var bank = message.header.subject.toString().match(from1_patt_sub)[1];
@@ -137,15 +142,17 @@ function accessImap(token) {
                                 var payment_date = message.body.match(from1_patt_body)[2];
                                 //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
                                 var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
-                                //console.log(subject);
-                                send_messages.push({subject: subject, body: message.body});
-                                console.log('send ms: ' + send_messages[0].subject);
+                                console.log(subject);
+                                send_messages.push({subject:subject, body:message.body});
                             }
-                        });
-
-                        send_messages.forEach(function (message) {
 
                         });
+
+                        if (send_messages.length !== 0) {
+                            send_messages.forEach(function (message) {
+                                sendMail(message);
+                            });
+                        }
 
                         //imap.close();
                     });
