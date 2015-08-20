@@ -51,6 +51,9 @@ xoauth2gen.getToken(function (err, token) {
 
 });
 
+//Checks if inbox has any messages in it.
+//If it does -> go through every message and looks for a FROM1 newly arrived bill
+//If it doesn't -> wait for new messages and go through those if they exist
 function filterFROM1() {
 
     imap.openBox('INBOX', false, function (err, box) {
@@ -122,7 +125,7 @@ function filterFROM1() {
                 //Finds the dollar amount and the due date of the payment
                 var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
 
-
+                //Go through all messages in the inbox
                 messages.forEach(function (message) {
 
                         //if the message is from:FROM1
@@ -148,6 +151,8 @@ function filterFROM1() {
                             var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
                             sendMail({subject: subject, body: message.body});
                         }
+
+
                     }
                 );
 
@@ -164,6 +169,7 @@ function filterFROM1() {
     });
 };
 
+//Takes a message object with a subject:"" and body:"" and sends the messsage from and to USER
 function sendMail(message) {
     // setup e-mail data
     var mail_opts = {
