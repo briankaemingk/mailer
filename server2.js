@@ -14,20 +14,151 @@ xoauth2gen = xoauth2gen.createXOAuth2Generator({
     refreshToken: process.env.REFRESHTOKEN
 });
 
+var transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+        xoauth2: xoauth2gen
+    }
+});
 
 //Get login token
 xoauth2gen.getToken(function (err, token) {
     if (err) {
         return console.log(err);
     }
-    accessImap(token);
-});
+    imap = new Imap({
+        xoauth2: token,
+        host: 'imap.gmail.com',
+        port: 993,
+        tls: true,
+        keepalive: true
+    });
 
-var transporter = nodemailer.createTransport({
-    service: 'Gmail',
-    auth: {
-        xoauth2: xoauth2gen
-    }
+    imap.connect();
+
+    imap.on('ready', function () {
+
+        imap.openBox('INBOX', false, function (err, box) {
+            if (err) throw err;
+            console.log('Inbox has ' + box.messages.total + ' messages');
+
+            //If the inbox has more than one message in it
+            if (box.messages.total === 0) {
+                console.log('Inbox has 0 messages');
+                imap.end();
+            }
+            else {
+
+                var messages = [];
+                var send_messages = [];
+
+                //For every message in the inbox
+                var f = imap.seq.fetch('1:' + box.messages.total, {
+                        bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
+                    })
+                    ;
+
+                f.on('message', function (msg, seqno) {
+                    //console.log('Message #%d', seqno);
+                    //var prefix = '(#' + seqno + ') ';
+                    var message = {};
+                    messages[seqno] = message;
+
+                    msg.on('body', function (stream, info) {
+                        var buffer = '', count = 0;
+                        var header;
+                        stream.on('data', function (chunk) {
+                            count += chunk.length;
+                            buffer += chunk.toString('utf8');
+                            //    if (info.which === 'TEXT')
+                            //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
+                        });
+                        stream.once('end', function () {
+                                if (info.which !== 'TEXT') {
+                                    header = Imap.parseHeader(buffer);
+                                    messages[seqno].header = header;
+                                }
+                                else {
+                                    messages[seqno].body = buffer;
+                                    //console.log(buffer);
+                                }
+                            }
+                        )
+                        ;
+                    });
+                    msg.once('attributes', function (attrs) {
+                        //console.log('Attributes: %s', inspect(attrs));
+                        messages[seqno].attributes = attrs;
+                    });
+                    //msg.once('end', function () {
+                    //    console.log('Finished');
+                    //});
+                });
+                f.once('error', function (err) {
+                    console.log('Fetch error: ' + err);
+                });
+
+                f.once('end', function () {
+                    //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
+                    var from1_patt_sub = /^Notification - Your (.*)(?= bill has arrived)/;
+
+
+                    messages.forEach(function (message) {
+
+                            //if the message is from:FROM1 and the subject matches a string that starts with:
+                            //"Notification - Your " and ends with " bill has arrived"
+                            if (process.env.FROM1 === message.header.from.toString() && from1_patt_sub.test(message.header.subject.toString())) {
+                                console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
+
+                                imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
+                                    if (err)
+                                        console.log(err);
+                                });
+
+
+                                //Get bank
+                                var bank = message.header.subject.toString().match(from1_patt_sub)[1];
+
+                                //Finds the dollar amount and the due date of the payment
+                                var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
+                                var bill_amount = message.body.match(from1_patt_body)[1];
+                                var payment_date = message.body.match(from1_patt_body)[2];
+                                //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
+                                var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
+                                send_messages.push({subject: subject, body: message.body});
+                            }
+
+                        }
+                    )
+                    ;
+
+                    if (send_messages.length !== 0) {
+                        send_messages.forEach(function (message) {
+                            sendMail(message);
+                        });
+                    }
+
+                    imap.on('mail', function (num) {
+                        console.log(num);
+                    });
+
+                    //imap.end();
+                });
+            }
+        });
+    });
+    imap.once('error', function (err) {
+        console.log(err);
+    });
+
+    //imap.on('mail', function (num) {
+    //    console.log(num);
+    //});
+
+    imap.once('end', function () {
+        console.log('Connection ended');
+    });
+
 });
 
 function sendMail(message) {
@@ -45,135 +176,4 @@ function sendMail(message) {
         }
         console.log('Message sent: <' + mail_opts.subject + '>');
     });
-}
-
-function accessImap(token) {
-    imap = new Imap({
-        xoauth2: token,
-        host: 'imap.gmail.com',
-        port: 993,
-        tls: true,
-        keepalive: false
-    });
-
-    function openInbox(cb) {
-        imap.openBox('INBOX', false, cb);
-    }
-
-    imap.once('ready', function () {
-
-        openInbox(function (err, box) {
-                if (err) throw err;
-                //console.log('Inbox has ' + box.messages.total + ' messages');
-
-                //If the inbox has more than one message in it
-                if (box.messages.total === 0) {
-                    console.log('Inbox has 0 messages');
-                    imap.end();
-                }
-                else {
-                    var messages = [];
-                    var send_messages = [];
-
-                    //For every message in the inbox
-                    var f = imap.seq.fetch('1:' + box.messages.total, {
-                            bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
-                        })
-                        ;
-
-                    f.on('message', function (msg, seqno) {
-                        //console.log('Message #%d', seqno);
-                        //var prefix = '(#' + seqno + ') ';
-                        var message = {};
-                        messages[seqno] = message;
-
-                        msg.on('body', function (stream, info) {
-                            var buffer = '', count = 0;
-                            var header;
-                            stream.on('data', function (chunk) {
-                                count += chunk.length;
-                                buffer += chunk.toString('utf8');
-                                //    if (info.which === 'TEXT')
-                                //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
-                            });
-                            stream.once('end', function () {
-                                    if (info.which !== 'TEXT') {
-                                        header = Imap.parseHeader(buffer);
-                                        messages[seqno].header = header;
-                                    }
-                                    else {
-                                        messages[seqno].body = buffer;
-                                        //console.log(buffer);
-                                    }
-                                }
-                            )
-                            ;
-                        });
-                        msg.once('attributes', function (attrs) {
-                            //console.log('Attributes: %s', inspect(attrs));
-                            messages[seqno].attributes = attrs;
-                        });
-                        //msg.once('end', function () {
-                        //    console.log('Finished');
-                        //});
-                    });
-                    f.once('error', function (err) {
-                        console.log('Fetch error: ' + err);
-                    });
-                    f.once('end', function () {
-                        //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
-                        var from1_patt_sub = /^Notification - Your (.*)(?= bill has arrived)/;
-
-
-                        messages.forEach(function (message) {
-
-                                //if the message is from:FROM1 and the subject matches a string that starts with:
-                                //"Notification - Your " and ends with " bill has arrived"
-                                if (process.env.FROM1 === message.header.from.toString() && from1_patt_sub.test(message.header.subject.toString())) {
-                                    console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
-
-                                    imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                                        if (err)
-                                            console.log(err);
-                                    });
-
-
-                                    //Get bank
-                                    var bank = message.header.subject.toString().match(from1_patt_sub)[1];
-
-                                    //Finds the dollar amount and the due date of the payment
-                                    var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
-                                    var bill_amount = message.body.match(from1_patt_body)[1];
-                                    var payment_date = message.body.match(from1_patt_body)[2];
-                                    //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                                    var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
-                                    send_messages.push({subject: subject, body: message.body});
-                                }
-
-                            }
-                        )
-                        ;
-
-                        if (send_messages.length !== 0) {
-                            send_messages.forEach(function (message) {
-                                sendMail(message);
-                            });
-                        }
-
-                        imap.end();
-                    });
-                }
-            }
-        )
-        ;
-    });
-
-    imap.once('error', function (err) {
-        console.log(err);
-    });
-
-    imap.once('end', function () {
-        console.log('Connection ended');
-    });
-    imap.connect();
 }
