@@ -69,7 +69,6 @@ function filterFROM1() {
         else {
 
             var messages = [];
-            var send_messages = [];
 
             //For every message in the inbox
             var f = imap.seq.fetch('1:' + box.messages.total, {
@@ -119,14 +118,20 @@ function filterFROM1() {
 
             f.once('end', function () {
                 //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
-                var from1_patt_sub = /^Notification - Your (.*)(?= bill has arrived)/;
+                var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
+                //Finds the dollar amount and the due date of the payment
+                var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
 
 
                 messages.forEach(function (message) {
 
-                        //if the message is from:FROM1 and the subject matches a string that starts with:
-                        //"Notification - Your " and ends with " bill has arrived"
-                        if (process.env.FROM1 === message.header.from.toString() && from1_patt_sub.test(message.header.subject.toString())) {
+                        //if the message is from:FROM1
+                        // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
+                        // AND the body has a scheduled payment amount
+                        if (process.env.FROM1 === message.header.from.toString()
+                            && from1_patt_sub_bill_arrived.test(message.header.subject.toString())
+                            && from1_patt_body.test(message.body)
+                        ) {
                             console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
 
                             imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
@@ -136,26 +141,16 @@ function filterFROM1() {
 
 
                             //Get bank
-                            var bank = message.header.subject.toString().match(from1_patt_sub)[1];
-
-                            //Finds the dollar amount and the due date of the payment
-                            var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
+                            var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
                             var bill_amount = message.body.match(from1_patt_body)[1];
                             var payment_date = message.body.match(from1_patt_body)[2];
                             //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
                             var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
-                            send_messages.push({subject: subject, body: message.body});
+                            sendMail({subject: subject, body: message.body});
                         }
-
                     }
-                )
-                ;
+                );
 
-                if (send_messages.length !== 0) {
-                    send_messages.forEach(function (message) {
-                        sendMail(message);
-                    });
-                }
                 //imap.end();
 
                 imap.once('mail', function (num) {
