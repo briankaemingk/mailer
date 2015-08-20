@@ -167,7 +167,7 @@ function scanInboxforFROM1NewBill() {
                             var bill_amount = message.body.match(from1_patt_body)[1];
                             var payment_date = message.body.match(from1_patt_body)[2];
                             //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                            var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
+                            var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
                             sendMail({subject: subject, body: message.body});
                         }
 
@@ -288,7 +288,7 @@ function scanWFforPaymentsMade() {
                                 var bill_amount = message.body.match(from1_patt_body)[1];
                                 var payment_date = message.body.match(from1_patt_body)[2];
                                 //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                                var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <pgen>';
+                                var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
                                 sendMail({subject: subject, body: message.body});
                             }
 
