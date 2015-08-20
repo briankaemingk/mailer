@@ -6,7 +6,9 @@ var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
 var inspect = require('util').inspect;
 var imap;
+var transporter;
 
+//Initialize xoauth2 generator
 xoauth2gen = xoauth2gen.createXOAuth2Generator({
     user: process.env.USER,
     clientId: process.env.CLIENTID,
@@ -14,7 +16,8 @@ xoauth2gen = xoauth2gen.createXOAuth2Generator({
     refreshToken: process.env.REFRESHTOKEN
 });
 
-var transporter = nodemailer.createTransport({
+//Initialize transporter to send mail
+transporter = nodemailer.createTransport({
     service: 'Gmail',
     auth: {
         xoauth2: xoauth2gen
@@ -22,7 +25,10 @@ var transporter = nodemailer.createTransport({
 });
 
 //Get login token
-xoauth2gen.getToken(function (err, token) {
+xoauth2gen.getToken(initializeImap);
+
+//Initialize imap object
+function initializeImap(err, token){
     if (err) {
         return console.log(err);
     }
@@ -35,26 +41,26 @@ xoauth2gen.getToken(function (err, token) {
     });
 
     imap.connect();
-    imap.once('ready', filterFROM1);
+    imap.once('ready', runOnceConnected);
 
     imap.once('error', function (err) {
         console.log(err);
     });
 
-    //imap.on('mail', function (num) {
-    //    console.log(num);
-    //});
-
     imap.once('end', function () {
         console.log('Connection ended');
     });
+}
 
-});
+function runOnceConnected(){
+    scanInboxforFROM1NewBill();
+    scanWFforPaymentsMade();
+}
 
 //Checks if inbox has any messages in it.
 //If it does -> go through every message and looks for a FROM1 newly arrived bill
 //If it doesn't -> wait for new messages and go through those if they exist
-function filterFROM1() {
+function scanInboxforFROM1NewBill() {
 
     imap.openBox('INBOX', false, function (err, box) {
         if (err) throw err;
@@ -160,13 +166,19 @@ function filterFROM1() {
 
                 imap.once('mail', function (num) {
                     console.log(num + ' new message');
-                    filterFROM1();
+                    scanInboxforFROM1NewBill();
                 });
 
                 //imap.end();
             });
         }
     });
+};
+
+//Go through every message in the @WaitingFor mailbox.
+//Deleting the @WaitingFor label for when the payment will be posted/withdrawn
+function scanWFforPaymentsMade(){
+
 };
 
 //Takes a message object with a subject:"" and body:"" and sends the messsage from and to USER
