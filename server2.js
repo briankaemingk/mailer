@@ -59,7 +59,7 @@ function filterFROM1() {
 
         //If the inbox has more than one message in it
         if (box.messages.total === 0) {
-            console.log('Inbox has 0 messages');
+            //console.log('Inbox has 0 messages');
 
             imap.once('mail', function (num) {
                 console.log(num + ' new message');
@@ -159,7 +159,7 @@ function filterFROM1() {
                 //imap.end();
 
                 imap.once('mail', function (num) {
-                    //console.log(num + ' new message');
+                    console.log(num + ' new message');
                     filterFROM1();
                 });
 
