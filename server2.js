@@ -189,7 +189,7 @@ function scanInboxforFROM1NewBill() {
 
 }
 
-//Sweeps through the bdn30 mailbox, deleting the bdn30 label when the payment posted date is yesterday
+//Sweeps through the bdn30 mailbox, deleting the bdn30 label when the payment posted date is today
 function scanbdn30forPaymentsMade() {
     bdn30Imap.openBox('Bills due (30 days)', false, function (err, box) {
         if (err) throw err;
@@ -285,8 +285,8 @@ function scanbdn30forPaymentsMade() {
 
                         //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
 
-                        //If the payment was processed yesterday, archive the message
-                        if(payment_date === getDateYesterday()){
+                        //If the payment was processed today, archive the message
+                        if(payment_date === getDateToday()){
                             bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                                 if (err)
                                     console.log(err);
@@ -298,11 +298,11 @@ function scanbdn30forPaymentsMade() {
                         else if(bdn30_patt_generic_date.test(payment_date)){
                             var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
                             //console.log('generic payment day: ' + generic_payment_day);
-                            var yesterday = addLeadingZero(new String(d.getDate()) - 1);
-                            //console.log('yesterday: '+ yesterday);
+                            var today = addLeadingZero(new String(d.getDate()));
+                            //console.log('today: '+ today);
 
-                            //If payment date was yesterday and the month the email was sent was last month, archive the message
-                            if(generic_payment_day === yesterday && month_sent_num === last_month) {
+                            //If payment date is today and the month the email was sent was last month, archive the message
+                            if(generic_payment_day === today && month_sent_num === last_month) {
                                 bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                                     if (err)
                                         console.log(err);
@@ -343,12 +343,12 @@ function sendMail(message) {
     });
 }
 
-function getDateYesterday() {
+function getDateToday() {
 //new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
     var d = new Date();
     //console.log(d.getMonth());
     var month = addLeadingZero(new String(d.getMonth() + 1));
-    var day = addLeadingZero(new String(d.getDate()) - 1);
+    var day = addLeadingZero(new String(d.getDate()));
 
     var date_string =  month + '/' + day + '/' + d.getFullYear();
     return date_string;
