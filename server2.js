@@ -6,7 +6,7 @@ var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
 var inspect = require('util').inspect;
 var inboxImap;
-var wfImap;
+var bdn30Imap;
 var transporter;
 
 //Initialize xoauth2 generator
@@ -41,7 +41,7 @@ function initializeImap(err, token) {
         keepalive: true
     });
 
-    wfImap = new Imap({
+    bdn30Imap = new Imap({
         xoauth2: token,
         host: 'imap.gmail.com',
         port: 993,
@@ -58,12 +58,12 @@ function initializeImap(err, token) {
         console.log('Connection ended');
     });
 
-    wfImap.connect();
-    wfImap.once('ready', scanWFforPaymentsMade);
-    wfImap.once('error', function (err) {
+    bdn30Imap.connect();
+    bdn30Imap.once('ready', scanbdn30forPaymentsMade);
+    bdn30Imap.once('error', function (err) {
         console.log(err);
     });
-    wfImap.once('end', function () {
+    bdn30Imap.once('end', function () {
         console.log('Connection ended');
     });
 
@@ -81,7 +81,7 @@ function scanInboxforFROM1NewBill() {
 
             //Listen for new mail
             inboxImap.once('mail', function (num) {
-                console.log(num + ' new message');
+                console.log(num + ' new message in inbox');
                 scanInboxforFROM1NewBill();
             });
         }
@@ -167,7 +167,7 @@ function scanInboxforFROM1NewBill() {
                             var bill_amount = message.body.match(from1_patt_body)[1];
                             var payment_date = message.body.match(from1_patt_body)[2];
                             //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                            var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
+                            var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
                             sendMail({subject: subject, body: message.body});
                         }
 
@@ -191,127 +191,110 @@ function scanInboxforFROM1NewBill() {
 
 //Go through every message in the @WaitingFor mailbox.
 //Deleting the @WaitingFor label for when the payment will be posted/withdrawn
-function scanWFforPaymentsMade() {
-    wfImap.openBox('@WAITING FOR', false, function (err, box) {
+function scanbdn30forPaymentsMade() {
+    bdn30Imap.openBox('Bills due (30 days)', false, function (err, box) {
         if (err) throw err;
 
-            //If the box is empty
-            if (box.messages.total === 0) {
+        //If the box is empty
+        if (box.messages.total === 0) {
 
-                //Listen for new mail
-                wfImap.once('mail', function (num) {
-                    console.log(num + ' new message');
-                    scanWFforPaymentsMade();
-                });
-            }
+            //Listen for new mail
+            bdn30Imap.once('mail', function (num) {
+                console.log(num + ' new message');
+                scanbdn30forPaymentsMade();
+            });
+        }
 
-            //If the box has messages in it
-            else {
+        //If the box has messages in it
+        else {
 
-                var messages = [];
+            var messages = [];
 
-                //For every message in the inbox
-                var f = wfImap.seq.fetch('1:' + box.messages.total, {
-                        bodies: ['HEADER.FIELDS (TO FROM SUBJECT)']
-                    })
-                    ;
+            //For every message in the inbox
+            var f = bdn30Imap.seq.fetch('1:' + box.messages.total, {
+                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)']
+                })
+                ;
 
-                f.on('message', function (msg, seqno) {
-                    //console.log('Message #%d', seqno);
-                    //var prefix = '(#' + seqno + ') ';
-                    var message = {};
-                    messages[seqno] = message;
+            f.on('message', function (msg, seqno) {
+                //console.log('Message #%d', seqno);
+                //var prefix = '(#' + seqno + ') ';
+                var message = {};
+                messages[seqno] = message;
 
-                    msg.on('body', function (stream, info) {
-                        var buffer = '', count = 0;
-                        var header;
-                        stream.on('data', function (chunk) {
-                            count += chunk.length;
-                            buffer += chunk.toString('utf8');
-                            //    if (info.which === 'TEXT')
-                            //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
-                        });
-                        stream.once('end', function () {
-                                if (info.which !== 'TEXT') {
-                                    header = Imap.parseHeader(buffer);
-                                    messages[seqno].header = header;
-                                }
-                                else {
-                                    messages[seqno].body = buffer;
-                                    //console.log(buffer);
-                                }
-                            }
-                        )
-                        ;
+                msg.on('body', function (stream, info) {
+                    var buffer = '', count = 0;
+                    var header;
+                    stream.on('data', function (chunk) {
+                        count += chunk.length;
+                        buffer += chunk.toString('utf8');
+                        //    if (info.which === 'TEXT')
+                        //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
                     });
-                    msg.once('attributes', function (attrs) {
-                        //console.log('Attributes: %s', inspect(attrs));
-                        messages[seqno].attributes = attrs;
-                    });
-                    //msg.once('end', function () {
-                    //    console.log('Finished');
-                    //});
-                });
-
-                f.once('error', function (err) {
-                    console.log('Fetch error: ' + err);
-                });
-
-                f.once('end', function () {
-                    //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
-                    var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
-                    //Finds the dollar amount and the due date of the payment
-                    var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
-
-                    console.log('Message count: ' + messages.length);
-
-                    //Go through all messages in the inbox
-                    messages.forEach(function (message) {
-
-                            //if the message is from:USER
-                            // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
-                            // AND the body has a scheduled payment amount
-                            if (process.env.USER === message.header.from.toString()
-                                && from1_patt_sub_bill_arrived.test(message.header.subject.toString())
-                                && from1_patt_body.test(message.body)
-                            ) {
-                                console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
-
-                                wfImap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                                    if (err)
-                                        console.log(err);
-                                });
-
-
-                                //Get bank
-                                var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
-                                var bill_amount = message.body.match(from1_patt_body)[1];
-                                var payment_date = message.body.match(from1_patt_body)[2];
-                                //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                                var subject = payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
-                                sendMail({subject: subject, body: message.body});
+                    stream.once('end', function () {
+                            if (info.which !== 'TEXT') {
+                                header = Imap.parseHeader(buffer);
+                                messages[seqno].header = header;
                             }
-
-
+                            else {
+                                messages[seqno].body = buffer;
+                                //console.log(buffer);
+                            }
                         }
-                    );
-
-
-
-                    wfImap.once('mail', function (num) {
-                        console.log(num + ' new message');
-                        scanInboxforFROM1NewBill();
-                    });
-
+                    )
+                    ;
                 });
-            }
+                msg.once('attributes', function (attrs) {
+                    //console.log('Attributes: %s', inspect(attrs));
+                    messages[seqno].attributes = attrs;
+                });
+                //msg.once('end', function () {
+                //    console.log('Finished');
+                //});
+            });
+
+            f.once('error', function (err) {
+                console.log('Fetch error: ' + err);
+            });
+
+            f.once('end', function () {
+                //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
+                var bdn30_patt_sub = /^Notification: ([0-9\/]+) - (\$[0-9,.]+).*/;
+
+                //Go through all messages in the inbox
+                messages.forEach(function (message) {
+
+                        var subject = message.header.subject.toString();
+
+                        var payment_date = subject.match(bdn30_patt_sub)[1];
+                        var bill_amount = subject.match(bdn30_patt_sub)[2];
+                        //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
+
+                        //If the payment was processed yesterday, archive the message
+                        if(payment_date === getDateYesterday()){
+                            bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
+                                if (err)
+                                    console.log(err);
+                                console.log('Payment made: <' + subject +'>');
+                            });
+                        }
+                    }
+                );
+
+                bdn30Imap.once('mail', function (num) {
+                    console.log(num + ' new message in bdn30');
+                    scanbdn30forPaymentsMade();
+                });
+
+            });
+        }
     });
 }
 
 
 //Takes a message object with a subject:"" and body:"" and sends the messsage from and to USER
 function sendMail(message) {
-    // setup e-mail data
+    //Setup e-mail data
     var mail_opts = {
         from: process.env.USER, // sender address
         to: process.env.USER, // list of receivers
@@ -325,4 +308,21 @@ function sendMail(message) {
         }
         console.log('Message sent: <' + mail_opts.subject + '>');
     });
+}
+
+function getDateYesterday() {
+//new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
+    var d = new Date();
+    //console.log(d.getMonth());
+    var month = addLeadingZero(new String(d.getMonth() + 1));
+    var day = addLeadingZero(new String(d.getDate()) - 1);
+
+    var date_string =  month + '/' + day + '/' + d.getFullYear();
+    return date_string;
+}
+
+function addLeadingZero(string) {
+    if (string.length === 1)
+        string = "0" + string;
+    return string;
 }
