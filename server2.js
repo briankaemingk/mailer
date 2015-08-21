@@ -7,6 +7,7 @@ var Imap = require('imap');
 var inspect = require('util').inspect;
 var inboxImap;
 var bdn30Imap;
+var corpcardchargeImap;
 var transporter;
 
 //Initialize xoauth2 generator
@@ -49,6 +50,14 @@ function initializeImap(err, token) {
         keepalive: true
     });
 
+    corpcardchargeImap = new Imap({
+        xoauth2: token,
+        host: 'imap.gmail.com',
+        port: 993,
+        tls: true,
+        keepalive: true
+    });
+
     inboxImap.connect();
     inboxImap.once('ready', scanInboxforFROM1NewBill);
     inboxImap.once('error', function (err) {
@@ -64,6 +73,15 @@ function initializeImap(err, token) {
         console.log(err);
     });
     bdn30Imap.once('end', function () {
+        console.log('Connection ended');
+    });
+
+    corpcardchargeImap.connect();
+    corpcardchargeImap.once('ready', scanCorpCardChargeExpenseinGTE);
+    corpcardchargeImap.once('error', function (err) {
+        console.log(err);
+    });
+    corpcardchargeImap.once('end', function () {
         console.log('Connection ended');
     });
 
@@ -197,11 +215,14 @@ function scanbdn30forPaymentsMade() {
         //If the box is empty
         if (box.messages.total === 0) {
 
-            //Listen for new mail
-            bdn30Imap.once('mail', function (num) {
-                console.log(num + ' new message');
-                scanbdn30forPaymentsMade();
-            });
+            ////Listen for new mail
+            //bdn30Imap.once('mail', function (num) {
+            //    console.log(num + ' new message');
+            //    scanbdn30forPaymentsMade();
+            //});
+
+            //Run again
+            scanbdn30forPaymentsMade();
         }
 
         //If the box has messages in it
@@ -286,27 +307,27 @@ function scanbdn30forPaymentsMade() {
                         //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
 
                         //If the payment was processed today, archive the message
-                        if(payment_date === getDateToday()){
+                        if (payment_date === getDateToday()) {
                             bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                                 if (err)
                                     console.log(err);
-                                console.log('Payment made: <' + subject +'>');
+                                console.log('Payment made: <' + subject + '>');
                             });
                         }
 
                         //If the date is in a generic payment days in the format 00/xx/0000
-                        else if(bdn30_patt_generic_date.test(payment_date)){
+                        else if (bdn30_patt_generic_date.test(payment_date)) {
                             var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
                             //console.log('generic payment day: ' + generic_payment_day);
                             var today = addLeadingZero(new String(d.getDate()));
                             //console.log('today: '+ today);
 
                             //If payment date is today and the month the email was sent was last month, archive the message
-                            if(generic_payment_day === today && month_sent_num === last_month) {
+                            if (generic_payment_day === today && month_sent_num === last_month) {
                                 bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                                     if (err)
                                         console.log(err);
-                                    console.log('Payment made: <' + subject +'>');
+                                    console.log('Payment made: <' + subject + '>');
                                 });
                             }
                         }
@@ -314,10 +335,148 @@ function scanbdn30forPaymentsMade() {
                     }
                 );
 
-                bdn30Imap.once('mail', function (num) {
-                    console.log(num + ' new message in bdn30');
-                    scanbdn30forPaymentsMade();
+                //bdn30Imap.once('mail', function (num) {
+                //    console.log(num + ' new message in bdn30');
+                //    scanbdn30forPaymentsMade();
+                //});
+
+                ////Repeat every 10 seconds
+                //var myVar=setInterval(function () {myTimer()}, 10000);
+                //
+                //function myTimer() {
+                //    var d = new Date();
+                //    scanbdn30forPaymentsMade();
+                //}
+
+                //Run again
+                scanbdn30forPaymentsMade();
+
+            });
+        }
+    });
+}
+
+
+function scanCorpCardChargeExpenseinGTE() {
+    corpcardchargeImap.openBox('corpcardcharge', false, function (err, box) {
+        if (err) throw err;
+
+        //If the box is empty
+        if (box.messages.total === 0) {
+
+            ////Listen for new mail
+            //bdn30Imap.once('mail', function (num) {
+            //    console.log(num + ' new message');
+            //    scanCorpCardChargeExpenseinGTE();
+            //});
+
+            //Run again
+            scanCorpCardChargeExpenseinGTE();
+        }
+
+        //If the box has messages in it
+        else {
+
+            var messages = [];
+
+            //For every message in the inbox
+            var f = corpcardchargeImap.seq.fetch('1:' + box.messages.total, {
+                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)']
+                })
+                ;
+
+            f.on('message', function (msg, seqno) {
+                //console.log('Message #%d', seqno);
+                //var prefix = '(#' + seqno + ') ';
+                var message = {};
+                messages[seqno] = message;
+
+                msg.on('body', function (stream, info) {
+                    var buffer = '', count = 0;
+                    var header;
+                    stream.on('data', function (chunk) {
+                        count += chunk.length;
+                        buffer += chunk.toString('utf8');
+                        //    if (info.which === 'TEXT')
+                        //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
+                    });
+                    stream.once('end', function () {
+                            if (info.which !== 'TEXT') {
+                                header = Imap.parseHeader(buffer);
+                                messages[seqno].header = header;
+                            }
+                            else {
+                                messages[seqno].body = buffer;
+                                //console.log(buffer);
+                            }
+                        }
+                    )
+                    ;
                 });
+                msg.once('attributes', function (attrs) {
+                    //console.log('Attributes: %s', inspect(attrs));
+                    messages[seqno].attributes = attrs;
+                });
+                //msg.once('end', function () {
+                //    console.log('Finished');
+                //});
+            });
+
+            f.once('error', function (err) {
+                console.log('Fetch error: ' + err);
+            });
+
+            f.once('end', function () {
+
+                //Matches a date sent pattern
+                var corpcharge_patt_date_sent = /^[a-z]+ [a-z]+ [0-9]+ [0-9]+/i;
+
+                //Go through all messages in the inbox
+                messages.forEach(function (message) {
+
+                        var subject = message.header.subject.toString();
+                        var date_sent = message.attributes.date.toString();
+                        //console.log('date sent: ' + date_sent);
+
+                        var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
+
+
+                        //var month_sent_name = date_sent.match(corpcharge_patt_date_sent)[1];
+                        ////console.log('month sent name: ' + month_sent_name);
+                        //var month_sent_num = addLeadingZero(convertMonthNameToNumber(month_sent_name).toString());
+                        ////console.log('month sent num: ' + month_sent_num);
+                        //var day_sent = addLeadingZero(date_sent.match(corpcharge_patt_date_sent)[2]);
+                        ////console.log('day sent: ' + day_sent);
+                        //var year_sent = date_sent.match(corpcharge_patt_date_sent)[3];
+                        ////console.log('year sent: ' + year_sent);
+
+                        //var date_sent_formatted = month_sent_num + '/' + day_sent + '/' + year_sent;
+                        //console.log(date_sent_formatted);
+
+                        var three_days_ago = new Date();
+                        three_days_ago.setDate(three_days_ago.getDate() - 3);
+                        three_days_ago = three_days_ago.toString();
+                        //console.log('three days ago: ' + three_days_ago);
+                        var three_days_ago_formatted = three_days_ago.match(corpcharge_patt_date_sent)[0];
+
+                        //If the alert was sent 3 days ago, then put it back in the inbox and mark it as unread
+                        if (three_days_ago_formatted === date_sent_formatted) {
+                            console.log('New corp charge in GT&E: <' + subject + '>');
+                            corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
+                                if (err)
+                                    console.log(err);
+                            });
+                            //Move to the inbox
+                            corpcardchargeImap.move(message.attributes.uid, 'INBOX', function (err) {
+                                if (err)
+                                    console.log(err);
+                            });
+                        }
+                    }
+                );
+
+                //Run again
+                scanCorpCardChargeExpenseinGTE();
 
             });
         }
@@ -350,7 +509,7 @@ function getDateToday() {
     var month = addLeadingZero(new String(d.getMonth() + 1));
     var day = addLeadingZero(new String(d.getDate()));
 
-    var date_string =  month + '/' + day + '/' + d.getFullYear();
+    var date_string = month + '/' + day + '/' + d.getFullYear();
     return date_string;
 }
 
