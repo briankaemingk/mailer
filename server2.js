@@ -29,7 +29,7 @@ transporter = nodemailer.createTransport({
 //Get login token
 xoauth2gen.getToken(initializeImap);
 
-//Initialize inboxImap objects
+//Initialize imap objects
 function initializeImap(err, token) {
     if (err) {
         return console.log(err);
@@ -58,6 +58,7 @@ function initializeImap(err, token) {
         keepalive: true
     });
 
+    //Set up initial inbox listeners
     inboxImap.connect();
     inboxImap.once('ready', scanInboxforFROM1NewBill);
     inboxImap.once('error', function (err) {
@@ -67,6 +68,7 @@ function initializeImap(err, token) {
         console.log('Connection ended');
     });
 
+    //Set up initial bdn30 listeners
     bdn30Imap.connect();
     bdn30Imap.once('ready', scanbdn30forPaymentsMade);
     bdn30Imap.once('error', function (err) {
@@ -76,6 +78,7 @@ function initializeImap(err, token) {
         console.log('Connection ended');
     });
 
+    //Set up initial corpcardcharge listeners
     corpcardchargeImap.connect();
     corpcardchargeImap.once('ready', scanCorpCardChargeExpenseinGTE);
     corpcardchargeImap.once('error', function (err) {
@@ -107,6 +110,8 @@ function scanInboxforFROM1NewBill() {
         //If the box has messages in it
         else {
             var messages = [];
+
+            console.log(Date() + ': ' + box.messages.total + ' message in inbox on startup');
 
             //For every message in the inbox
             var f = inboxImap.seq.fetch('1:' + box.messages.total, {
