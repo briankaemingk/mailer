@@ -113,10 +113,9 @@ function scanInboxforFROM1NewBill() {
 
         //If the box has messages in it
         else {
-            var messages = [];
 
             //LOGGED
-            console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox on startup');
+            console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox');
 
             //For every message in the inbox
             var f = inboxImap.seq.fetch('1:' + box.messages.total, {
@@ -127,11 +126,9 @@ function scanInboxforFROM1NewBill() {
                 //console.log('Message #%d', seqno);
                 //var prefix = '(#' + seqno + ') ';
                 var message = {};
-                messages[seqno] = message;
 
                 msg.on('body', function (stream, info) {
-                    var buffer = '', count = 0;
-                    var header;
+                    var buffer = '', count = 0, header;
                     stream.on('data', function (chunk) {
                         count += chunk.length;
                         buffer += chunk.toString('utf8');
@@ -141,11 +138,11 @@ function scanInboxforFROM1NewBill() {
                     stream.once('end', function () {
                             if (info.which !== 'TEXT') {
                                 header = Imap.parseHeader(buffer);
-                                messages[seqno].header = header;
+                                message.header = header;
                             }
                             else {
-                                messages[seqno].body = buffer;
-                                //console.log(buffer);
+                                message.bodyStr = buffer;
+                                message.body = buffer;
                             }
                         }
                     )
@@ -153,10 +150,10 @@ function scanInboxforFROM1NewBill() {
                 });
                 msg.once('attributes', function (attrs) {
                     //console.log('Attributes: %s', inspect(attrs));
-                    messages[seqno].attributes = attrs;
+                    message.attributes = attrs;
                 });
                 msg.once('end', function () {
-                    console.log('Finished message');
+                    //console.log('Finished message');
 
                     //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
                     var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
@@ -165,25 +162,25 @@ function scanInboxforFROM1NewBill() {
 
                     //if the message is from:FROM1
                     // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
-                    // AND the body has a scheduled payment amount
-                    if (process.env.FROM1 === messages[seqno].header.from.toString()
-                        && from1_patt_sub_bill_arrived.test(messages[seqno].header.subject.toString())
-                        && from1_patt_body.test(messages[seqno].body)
+                    // AND the bodyStr has a scheduled payment amount
+                    if (process.env.FROM1 === message.header.from.toString()
+                        && from1_patt_sub_bill_arrived.test(message.header.subject.toString())
+                        && from1_patt_body.test(message.bodyStr)
                     ) {
                         console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
 
-                        inboxImap.setFlags(messages[seqno].attributes.uid, '\Deleted', function (err) {
+                        inboxImap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                             if (err)
                                 console.log(err);
                         });
 
                         //Get bank
-                        var bank = messages[seqno].header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
-                        var bill_amount = messages[seqno].body.match(from1_patt_body)[1];
-                        var payment_date = messages[seqno].body.match(from1_patt_body)[2];
+                        var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
+                        var bill_amount = message.bodyStr.match(from1_patt_body)[1];
+                        var payment_date = message.bodyStr.match(from1_patt_body)[2];
                         //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
                         var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
-                        sendMail({subject: subject, body: messages[seqno].body});
+                        sendMail({subject: subject, bodyStr: message.bodyStr});
                     }
                 });
 
@@ -214,14 +211,13 @@ function scanbdn30forPaymentsMade() {
         //If the box is empty
         if (box.messages.total === 0) {
 
-            ////Listen for new mail
-            //bdn30Imap.once('mail', function (num) {
-            //    console.log(num + ' new message');
-            //    scanbdn30forPaymentsMade();
-            //});
+            //Listen for new mail
+            bdn30Imap.once('mail', function (num) {
+                //LOGGED
+                console.log(getDateAndTime() + '~ ' + num + ' new message in bdn30');
+                scanbdn30forPaymentsMade();
+            });
 
-            //Run again
-            scanbdn30forPaymentsMade();
         }
 
         //If the box has messages in it
@@ -256,7 +252,7 @@ function scanbdn30forPaymentsMade() {
                                 messages[seqno].header = header;
                             }
                             else {
-                                messages[seqno].body = buffer;
+                                messages[seqno].bodyStr = buffer;
                                 //console.log(buffer);
                             }
                         }
@@ -267,9 +263,9 @@ function scanbdn30forPaymentsMade() {
                     //console.log('Attributes: %s', inspect(attrs));
                     messages[seqno].attributes = attrs;
                 });
-                //msg.once('end', function () {
-                //    console.log('Finished');
-                //});
+                msg.once('end', function () {
+                    //console.log('Finished');
+                });
             });
 
             f.once('error', function (err) {
@@ -334,21 +330,11 @@ function scanbdn30forPaymentsMade() {
                     }
                 );
 
-                //bdn30Imap.once('mail', function (num) {
-                //    console.log(num + ' new message in bdn30');
-                //    scanbdn30forPaymentsMade();
-                //});
-
-                ////Repeat every 10 seconds
-                //var myVar=setInterval(function () {myTimer()}, 10000);
-                //
-                //function myTimer() {
-                //    var d = new Date();
-                //    scanbdn30forPaymentsMade();
-                //}
-
-                //Run again
-                scanbdn30forPaymentsMade();
+                bdn30Imap.once('mail', function (num) {
+                    //LOGGED
+                    console.log(getDateAndTime() + '~ ' + num + ' new message in bdn30');
+                    scanbdn30forPaymentsMade();
+                });
 
             });
         }
@@ -363,14 +349,13 @@ function scanCorpCardChargeExpenseinGTE() {
         //If the box is empty
         if (box.messages.total === 0) {
 
-            ////Listen for new mail
-            //bdn30Imap.once('mail', function (num) {
-            //    console.log(num + ' new message');
-            //    scanCorpCardChargeExpenseinGTE();
-            //});
+            //Listen for new mail
+            corpcardchargeImap.once('mail', function (num) {
+                //LOGGED
+                console.log(getDateAndTime() + '~ ' + num + ' new message');
+                scanCorpCardChargeExpenseinGTE();
+            });
 
-            //Run again
-            scanCorpCardChargeExpenseinGTE();
         }
 
         //If the box has messages in it
@@ -405,7 +390,7 @@ function scanCorpCardChargeExpenseinGTE() {
                                 messages[seqno].header = header;
                             }
                             else {
-                                messages[seqno].body = buffer;
+                                messages[seqno].bodyStr = buffer;
                                 //console.log(buffer);
                             }
                         }
@@ -416,9 +401,9 @@ function scanCorpCardChargeExpenseinGTE() {
                     //console.log('Attributes: %s', inspect(attrs));
                     messages[seqno].attributes = attrs;
                 });
-                //msg.once('end', function () {
-                //    console.log('Finished');
-                //});
+                msg.once('end', function () {
+                    //console.log('Finished');
+                });
             });
 
             f.once('error', function (err) {
@@ -474,8 +459,13 @@ function scanCorpCardChargeExpenseinGTE() {
                     }
                 );
 
-                //Run again
-                scanCorpCardChargeExpenseinGTE();
+                //Listen for new mail
+                corpcardchargeImap.once('mail', function (num) {
+
+                    //LOGGED
+                    console.log(getDateAndTime() + '~ ' + num + ' new message');
+                    scanCorpCardChargeExpenseinGTE();
+                });
 
             });
         }
@@ -483,14 +473,14 @@ function scanCorpCardChargeExpenseinGTE() {
 }
 
 
-//Takes a message object with a subject:"" and body:"" and sends the messsage from and to USER
+//Takes a message object with a subject:"" and bodyStr:"" and sends the messsage from and to USER
 function sendMail(message) {
     //Setup e-mail data
     var mail_opts = {
         from: process.env.USER, // sender address
         to: process.env.USER, // list of receivers
         subject: message.subject.toString(), // Subject line
-        text: message.body // plaintext body
+        text: message.bodyStr // plaintext bodyStr
     };
 
     transporter.sendMail(mail_opts, function (error, info) {
