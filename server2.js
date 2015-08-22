@@ -100,10 +100,13 @@ function scanInboxforFROM1NewBill() {
         //If the box is empty
         if (box.messages.total === 0) {
 
-            //Listen for new mail
             //LOGGED
+            console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox on startup');
+
+            //Listen for new mail
             inboxImap.once('mail', function (num) {
-                console.log(getDateAndTime() + '> ' + num + ' new message in inbox');
+                //LOGGED
+                console.log(getDateAndTime() + '~ ' + num + ' new message in inbox');
                 scanInboxforFROM1NewBill();
             });
         }
@@ -113,13 +116,12 @@ function scanInboxforFROM1NewBill() {
             var messages = [];
 
             //LOGGED
-            console.log(getDateAndTime() + '> ' + box.messages.total + ' message in inbox on startup');
+            console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox on startup');
 
             //For every message in the inbox
             var f = inboxImap.seq.fetch('1:' + box.messages.total, {
-                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
-                })
-                ;
+                bodies: ['HEADER.FIELDS (TO FROM SUBJECT)', 'TEXT']
+            });
 
             f.on('message', function (msg, seqno) {
                 //console.log('Message #%d', seqno);
@@ -153,62 +155,51 @@ function scanInboxforFROM1NewBill() {
                     //console.log('Attributes: %s', inspect(attrs));
                     messages[seqno].attributes = attrs;
                 });
-                //msg.once('end', function () {
-                //    console.log('Finished');
-                //});
+                msg.once('end', function () {
+                    console.log('Finished message');
+
+                    //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
+                    var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
+                    //Finds the dollar amount and the due date of the payment
+                    var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
+
+                    //if the message is from:FROM1
+                    // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
+                    // AND the body has a scheduled payment amount
+                    if (process.env.FROM1 === messages[seqno].header.from.toString()
+                        && from1_patt_sub_bill_arrived.test(messages[seqno].header.subject.toString())
+                        && from1_patt_body.test(messages[seqno].body)
+                    ) {
+                        console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
+
+                        inboxImap.setFlags(messages[seqno].attributes.uid, '\Deleted', function (err) {
+                            if (err)
+                                console.log(err);
+                        });
+
+                        //Get bank
+                        var bank = messages[seqno].header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
+                        var bill_amount = messages[seqno].body.match(from1_patt_body)[1];
+                        var payment_date = messages[seqno].body.match(from1_patt_body)[2];
+                        //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
+                        var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
+                        sendMail({subject: subject, body: messages[seqno].body});
+                    }
+                });
+
             });
             f.once('error', function (err) {
                 console.log('Fetch error: ' + err);
             });
 
             f.once('end', function () {
-                //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
-                var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
-                //Finds the dollar amount and the due date of the payment
-                var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
 
-                //Go through all messages in the inbox
-                messages.forEach(function (message) {
-                        //console.log('FROM1: ' + process.env.FROM1);
-                        //console.log('Email from: ' + message.header.from.toString());
-
-                        //if the message is from:FROM1
-                        // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
-                        // AND the body has a scheduled payment amount
-                        if (process.env.FROM1 === message.header.from.toString()
-                            && from1_patt_sub_bill_arrived.test(message.header.subject.toString())
-                            && from1_patt_body.test(message.body)
-                        ) {
-                            console.log('Email with subject: <' + message.header.subject.toString() + '> recognized as a newly arrived bill');
-
-                            inboxImap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                                if (err)
-                                    console.log(err);
-                            });
-
-
-                            //Get bank
-                            var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
-                            var bill_amount = message.body.match(from1_patt_body)[1];
-                            var payment_date = message.body.match(from1_patt_body)[2];
-                            //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                            var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
-                            sendMail({subject: subject, body: message.body});
-                        }
-
-
-                    }
-                );
-
-                //inboxImap.end();
-
-                //LOGGED
                 inboxImap.once('mail', function (num) {
-                    console.log(getDateAndTime() + '> ' + num + ' new message in inbox');
+                    //LOGGED
+                    console.log(getDateAndTime() + '~ ' + num + ' new message in inbox');
                     scanInboxforFROM1NewBill();
                 });
 
-                //inboxImap.end();
             });
         }
     });
