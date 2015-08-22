@@ -222,8 +222,14 @@ function scanbdn30forPaymentsMade() {
 
         //If the box has messages in it
         else {
+            //Matches the payment date and the dollar amount of the subject
+            var bdn30_patt_sub = /^Notification: ([0-9\/]+) - (\$[0-9,.]+).*/;
 
-            var messages = [];
+            //Matches a 00/xx/0000 pattern
+            var bdn30_patt_generic_date = /00\/([0-9][0-9])\/0000/;
+
+            //Matches a date sent pattern
+            var bdn30_patt_date_sent = /^[a-z]+ ([a-z]+)/i;
 
             //For every message in the inbox
             var f = bdn30Imap.seq.fetch('1:' + box.messages.total, {
@@ -235,7 +241,6 @@ function scanbdn30forPaymentsMade() {
                 //console.log('Message #%d', seqno);
                 //var prefix = '(#' + seqno + ') ';
                 var message = {};
-                messages[seqno] = message;
 
                 msg.on('body', function (stream, info) {
                     var buffer = '', count = 0;
@@ -249,10 +254,10 @@ function scanbdn30forPaymentsMade() {
                     stream.once('end', function () {
                             if (info.which !== 'TEXT') {
                                 header = Imap.parseHeader(buffer);
-                                messages[seqno].header = header;
+                                message.header = header;
                             }
                             else {
-                                messages[seqno].bodyStr = buffer;
+                                message.body = buffer;
                                 //console.log(buffer);
                             }
                         }
@@ -261,10 +266,54 @@ function scanbdn30forPaymentsMade() {
                 });
                 msg.once('attributes', function (attrs) {
                     //console.log('Attributes: %s', inspect(attrs));
-                    messages[seqno].attributes = attrs;
+                    message.attributes = attrs;
                 });
                 msg.once('end', function () {
-                    //console.log('Finished');
+                    console.log('Finished');
+
+                    var subject = message.header.subject.toString();
+                    var date_sent = message.attributes.date.toString();
+                    //console.log('date sent: ' + date_sent);
+                    var month_sent_name = date_sent.match(bdn30_patt_date_sent)[1];
+                    var month_sent_num = addLeadingZero(convertMonthNameToNumber(month_sent_name).toString());
+                    //console.log('month sent num: ' + month_sent_num);
+
+                    var d = new Date();
+                    var last_month = addLeadingZero(new String(d.getMonth()));
+                    //console.log('last month: ' + last_month);
+
+                    var payment_date = subject.match(bdn30_patt_sub)[1];
+                    var bill_amount = subject.match(bdn30_patt_sub)[2];
+
+                    //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
+
+                    //If the payment was processed today, archive the message
+                    if (payment_date === getDateToday()) {
+                        bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
+                            if (err)
+                                console.log(err);
+                            console.log('Payment made: <' + subject + '>');
+                        });
+                    }
+
+                    //If the date is in a generic payment days in the format 00/xx/0000
+                    else if (bdn30_patt_generic_date.test(payment_date)) {
+                        var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
+                        //console.log('generic payment day: ' + generic_payment_day);
+                        var today = addLeadingZero(new String(d.getDate()));
+                        //console.log('today: '+ today);
+
+                        //If payment date is today and the month the email was sent was last month, archive the message
+                        if (generic_payment_day === today && month_sent_num === last_month) {
+                            bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
+                                if (err)
+                                    console.log(err);
+                                console.log('Payment made: <' + subject + '>');
+                            });
+                        }
+                    }
+
+
                 });
             });
 
@@ -273,63 +322,8 @@ function scanbdn30forPaymentsMade() {
             });
 
             f.once('end', function () {
-                //Matches the payment date and the dollar amount of the subject
-                var bdn30_patt_sub = /^Notification: ([0-9\/]+) - (\$[0-9,.]+).*/;
 
-                //Matches a 00/xx/0000 pattern
-                var bdn30_patt_generic_date = /00\/([0-9][0-9])\/0000/;
-
-                //Matches a date sent pattern
-                var bdn30_patt_date_sent = /^[a-z]+ ([a-z]+)/i;
-
-                //Go through all messages in the inbox
-                messages.forEach(function (message) {
-
-                        var subject = message.header.subject.toString();
-                        var date_sent = message.attributes.date.toString();
-                        //console.log('date sent: ' + date_sent);
-                        var month_sent_name = date_sent.match(bdn30_patt_date_sent)[1];
-                        var month_sent_num = addLeadingZero(convertMonthNameToNumber(month_sent_name).toString());
-                        //console.log('month sent num: ' + month_sent_num);
-
-                        var d = new Date();
-                        var last_month = addLeadingZero(new String(d.getMonth()));
-                        //console.log('last month: ' + last_month);
-
-                        var payment_date = subject.match(bdn30_patt_sub)[1];
-                        var bill_amount = subject.match(bdn30_patt_sub)[2];
-
-                        //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
-
-                        //If the payment was processed today, archive the message
-                        if (payment_date === getDateToday()) {
-                            bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                                if (err)
-                                    console.log(err);
-                                console.log('Payment made: <' + subject + '>');
-                            });
-                        }
-
-                        //If the date is in a generic payment days in the format 00/xx/0000
-                        else if (bdn30_patt_generic_date.test(payment_date)) {
-                            var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
-                            //console.log('generic payment day: ' + generic_payment_day);
-                            var today = addLeadingZero(new String(d.getDate()));
-                            //console.log('today: '+ today);
-
-                            //If payment date is today and the month the email was sent was last month, archive the message
-                            if (generic_payment_day === today && month_sent_num === last_month) {
-                                bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                                    if (err)
-                                        console.log(err);
-                                    console.log('Payment made: <' + subject + '>');
-                                });
-                            }
-                        }
-
-                    }
-                );
-
+                //Listen for new message
                 bdn30Imap.once('mail', function (num) {
                     //LOGGED
                     console.log(getDateAndTime() + '~ ' + num + ' new message in bdn30');
