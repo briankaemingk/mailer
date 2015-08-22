@@ -101,8 +101,9 @@ function scanInboxforFROM1NewBill() {
         if (box.messages.total === 0) {
 
             //Listen for new mail
+            //LOGGED
             inboxImap.once('mail', function (num) {
-                console.log(Date() + ': ' + num + ' new message in inbox');
+                console.log(getDateAndTime() + '> ' + num + ' new message in inbox');
                 scanInboxforFROM1NewBill();
             });
         }
@@ -111,7 +112,8 @@ function scanInboxforFROM1NewBill() {
         else {
             var messages = [];
 
-            console.log(Date() + ': ' + box.messages.total + ' message in inbox on startup');
+            //LOGGED
+            console.log(getDateAndTime() + '> ' + box.messages.total + ' message in inbox on startup');
 
             //For every message in the inbox
             var f = inboxImap.seq.fetch('1:' + box.messages.total, {
@@ -200,8 +202,9 @@ function scanInboxforFROM1NewBill() {
 
                 //inboxImap.end();
 
+                //LOGGED
                 inboxImap.once('mail', function (num) {
-                    console.log(Date() + ': ' + num + ' new message in inbox');
+                    console.log(getDateAndTime() + '> ' + num + ' new message in inbox');
                     scanInboxforFROM1NewBill();
                 });
 
@@ -528,4 +531,11 @@ function convertMonthNameToNumber(monthName) {
     var myDate = new Date(monthName + " 1, 2000");
     var monthDigit = myDate.getMonth();
     return isNaN(monthDigit) ? 0 : (monthDigit + 1);
+}
+
+function getDateAndTime() {
+    var d = (new Date()).toString();
+    var date_time_patt = /.+ .+ .+ .+ [0-9]{2}:[0-9]{2}/;
+    d = d.match(date_time_patt)[0];
+    return d;
 }
