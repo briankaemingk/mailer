@@ -269,7 +269,7 @@ function scanbdn30forPaymentsMade() {
                     message.attributes = attrs;
                 });
                 msg.once('end', function () {
-                    console.log('Finished');
+                    //console.log('Finished');
 
                     var subject = message.header.subject.toString();
                     var date_sent = message.attributes.date.toString();
