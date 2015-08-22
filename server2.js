@@ -99,7 +99,7 @@ function scanInboxforFROM1NewBill() {
 
             //Listen for new mail
             inboxImap.once('mail', function (num) {
-                console.log(num + ' new message in inbox');
+                console.log(Date() + ': ' + num + ' new message in inbox');
                 scanInboxforFROM1NewBill();
             });
         }
@@ -196,7 +196,7 @@ function scanInboxforFROM1NewBill() {
                 //inboxImap.end();
 
                 inboxImap.once('mail', function (num) {
-                    console.log(num + ' new message');
+                    console.log(Date() + ': ' + num + ' new message in inbox');
                     scanInboxforFROM1NewBill();
                 });
 
