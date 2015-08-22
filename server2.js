@@ -346,7 +346,7 @@ function scanCorpCardChargeExpenseinGTE() {
             //Listen for new mail
             corpcardchargeImap.once('mail', function (num) {
                 //LOGGED
-                console.log(getDateAndTime() + '~ ' + num + ' new message');
+                console.log(getDateAndTime() + '~ ' + num + ' new message in corpcardcharge');
                 scanCorpCardChargeExpenseinGTE();
             });
 
@@ -367,7 +367,6 @@ function scanCorpCardChargeExpenseinGTE() {
                 //console.log('Message #%d', seqno);
                 //var prefix = '(#' + seqno + ') ';
                 var message = {};
-                messages[seqno] = message;
 
                 msg.on('body', function (stream, info) {
                     var buffer = '', count = 0;
@@ -381,10 +380,10 @@ function scanCorpCardChargeExpenseinGTE() {
                     stream.once('end', function () {
                             if (info.which !== 'TEXT') {
                                 header = Imap.parseHeader(buffer);
-                                messages[seqno].header = header;
+                                message.header = header;
                             }
                             else {
-                                messages[seqno].bodyStr = buffer;
+                                message.bodyStr = buffer;
                                 //console.log(buffer);
                             }
                         }
@@ -393,10 +392,37 @@ function scanCorpCardChargeExpenseinGTE() {
                 });
                 msg.once('attributes', function (attrs) {
                     //console.log('Attributes: %s', inspect(attrs));
-                    messages[seqno].attributes = attrs;
+                    message.attributes = attrs;
                 });
                 msg.once('end', function () {
                     //console.log('Finished');
+
+                    //Matches a date sent pattern
+                    var corpcharge_patt_date_sent = /^[a-z]+ [a-z]+ [0-9]+ [0-9]+/i;
+                    var subject = message.header.subject.toString();
+                    var date_sent = message.attributes.date.toString();
+                    var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
+
+                    var three_days_ago = new Date();
+                    three_days_ago.setDate(three_days_ago.getDate() - 3);
+                    three_days_ago = three_days_ago.toString();
+                    //console.log('three days ago: ' + three_days_ago);
+                    var three_days_ago_formatted = three_days_ago.match(corpcharge_patt_date_sent)[0];
+
+                    //If the alert was sent 3 days ago, then put it back in the inbox and mark it as unread
+                    if (three_days_ago_formatted === date_sent_formatted) {
+                        console.log('New corp charge in GT&E: <' + subject + '>');
+                        corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
+                            if (err)
+                                console.log(err);
+                        });
+                        //Move to the inbox
+                        corpcardchargeImap.move(message.attributes.uid, 'INBOX', function (err) {
+                            if (err)
+                                console.log(err);
+                        });
+                    }
+
                 });
             });
 
@@ -406,58 +432,10 @@ function scanCorpCardChargeExpenseinGTE() {
 
             f.once('end', function () {
 
-                //Matches a date sent pattern
-                var corpcharge_patt_date_sent = /^[a-z]+ [a-z]+ [0-9]+ [0-9]+/i;
-
-                //Go through all messages in the inbox
-                messages.forEach(function (message) {
-
-                        var subject = message.header.subject.toString();
-                        var date_sent = message.attributes.date.toString();
-                        //console.log('date sent: ' + date_sent);
-
-                        var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
-
-
-                        //var month_sent_name = date_sent.match(corpcharge_patt_date_sent)[1];
-                        ////console.log('month sent name: ' + month_sent_name);
-                        //var month_sent_num = addLeadingZero(convertMonthNameToNumber(month_sent_name).toString());
-                        ////console.log('month sent num: ' + month_sent_num);
-                        //var day_sent = addLeadingZero(date_sent.match(corpcharge_patt_date_sent)[2]);
-                        ////console.log('day sent: ' + day_sent);
-                        //var year_sent = date_sent.match(corpcharge_patt_date_sent)[3];
-                        ////console.log('year sent: ' + year_sent);
-
-                        //var date_sent_formatted = month_sent_num + '/' + day_sent + '/' + year_sent;
-                        //console.log(date_sent_formatted);
-
-                        var three_days_ago = new Date();
-                        three_days_ago.setDate(three_days_ago.getDate() - 3);
-                        three_days_ago = three_days_ago.toString();
-                        //console.log('three days ago: ' + three_days_ago);
-                        var three_days_ago_formatted = three_days_ago.match(corpcharge_patt_date_sent)[0];
-
-                        //If the alert was sent 3 days ago, then put it back in the inbox and mark it as unread
-                        if (three_days_ago_formatted === date_sent_formatted) {
-                            console.log('New corp charge in GT&E: <' + subject + '>');
-                            corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
-                                if (err)
-                                    console.log(err);
-                            });
-                            //Move to the inbox
-                            corpcardchargeImap.move(message.attributes.uid, 'INBOX', function (err) {
-                                if (err)
-                                    console.log(err);
-                            });
-                        }
-                    }
-                );
-
                 //Listen for new mail
                 corpcardchargeImap.once('mail', function (num) {
-
                     //LOGGED
-                    console.log(getDateAndTime() + '~ ' + num + ' new message');
+                    console.log(getDateAndTime() + '~ ' + num + ' new message in corpcardcharge');
                     scanCorpCardChargeExpenseinGTE();
                 });
 
