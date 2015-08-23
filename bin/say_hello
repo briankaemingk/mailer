@@ -1,6 +1,6 @@
 #! /app/bin/node
-function server2() {
+function sayHello() {
   console.log('Hello');
 }
-server2();
+sayHello();
 exit();
