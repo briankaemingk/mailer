@@ -114,8 +114,8 @@ function scanInboxforFROM1NewBill() {
         //If the box has messages in it
         else {
 
-            //LOGGED
-            console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox');
+            ////DEBUG
+            //console.log(getDateAndTime() + '~ ' + box.messages.total + ' messages in inbox');
 
             //For every message in the inbox
             var f = inboxImap.seq.fetch('1:' + box.messages.total, {
