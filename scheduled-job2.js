@@ -3,7 +3,7 @@ var Heroku = require('heroku.node');
 function scaleDownHeroku() {
 
     var client = new Heroku({email: process.env.USER, api_key: process.env.HEROKU_API_TOKEN});
-    client.app(process.env.HEROKU_APP_NAME).dynos.scale('worker', 1, function () {
+    client.app(process.env.HEROKU_APP_NAME).dynos.scale('worker', 0, function () {
         //LOGGED
         console.log(getDateAndTime() + '~ App scaled down to zero');
     });
