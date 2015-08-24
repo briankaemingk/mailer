@@ -1,1 +1,1 @@
-worker: node scheduled-job2
+worker: node server2
