@@ -2,8 +2,9 @@
   "name": "email-node",
   "version": "1.0.0",
   "dependencies": {
-    "nodemailer": "1.0",
-    "express": "~4.5.1"
+    "express": "~4.5.1",
+    "heroku.node": "^0.2.1",
+    "nodemailer": "1.0"
   },
   "description": "gmail filtering app by bk",
   "main": "server2.js",
