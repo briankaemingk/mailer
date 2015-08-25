@@ -1,6 +1,7 @@
 /**
  * Created by kaemibr on 8/14/2015.
  */
+require('dotenv').load();
 var nodemailer = require('nodemailer');
 var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
