@@ -4,9 +4,11 @@
   "dependencies": {
     "dotenv": "^1.2.0",
     "express": "~4.5.1",
+    "google-calendar": "^1.3.2",
     "heroku-client": "^2.1.0",
     "heroku.node": "^0.2.1",
-    "nodemailer": "1.0"
+    "nodemailer": "1.0",
+    "passport": "^0.3.0"
   },
   "description": "gmail filtering app by bk",
   "main": "server2.js",
