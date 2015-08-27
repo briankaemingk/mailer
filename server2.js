@@ -404,14 +404,14 @@ function scanCorpCardChargeExpenseinGTE() {
                     var date_sent = message.attributes.date.toString();
                     var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
 
-                    var four_days_ago = new Date();
-                    four_days_ago.setDate(four_days_ago.getDate() - 4);
-                    four_days_ago = four_days_ago.toString();
-                    //console.log('four days ago: ' + four_days_ago);
-                    var four_days_ago_formatted = four_days_ago.match(corpcharge_patt_date_sent)[0];
+                    var five_days_ago = new Date();
+                    five_days_ago.setDate(five_days_ago.getDate() - 5);
+                    five_days_ago = five_days_ago.toString();
+                    //console.log('five days ago: ' + five_days_ago);
+                    var five_days_ago_formatted = five_days_ago.match(corpcharge_patt_date_sent)[0];
 
                     //If the alert was sent 3 days ago, then put it back in the inbox and mark it as unread
-                    if (four_days_ago_formatted === date_sent_formatted) {
+                    if (five_days_ago_formatted === date_sent_formatted) {
                         console.log('New corp charge in GT&E: <' + subject + '>');
                         corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
                             if (err)
