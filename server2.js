@@ -206,7 +206,7 @@ function scanInboxforFROM1NewBill() {
 
 //Sweeps through the bdn30 mailbox, deleting the bdn30 label when the payment posted date is today
 function scanbdn30forPaymentsMade() {
-    bdn30Imap.openBox('Bills due (30 days)', false, function (err, box) {
+    bdn30Imap.openBox('bills due (30 days)', false, function (err, box) {
         if (err) throw err;
 
         //If the box is empty
@@ -283,37 +283,38 @@ function scanbdn30forPaymentsMade() {
                     var last_month = addLeadingZero(new String(d.getMonth()));
                     //console.log('last month: ' + last_month);
 
-                    var payment_date = subject.match(bdn30_patt_sub)[1];
-                    var bill_amount = subject.match(bdn30_patt_sub)[2];
+                    if (bdn30_patt_sub.test(subject)) {
+                        var payment_date = subject.match(bdn30_patt_sub)[1];
+                        var bill_amount = subject.match(bdn30_patt_sub)[2];
 
-                    //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
+                        //console.log('bill amt ' + bill_amount + ' payment date ' + payment_date);
 
-                    //If the payment was processed today, archive the message
-                    if (payment_date === getDateToday()) {
-                        bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
-                            if (err)
-                                console.log(err);
-                            console.log('Payment made: <' + subject + '>');
-                        });
-                    }
-
-                    //If the date is in a generic payment days in the format 00/xx/0000
-                    else if (bdn30_patt_generic_date.test(payment_date)) {
-                        var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
-                        //console.log('generic payment day: ' + generic_payment_day);
-                        var today = addLeadingZero(new String(d.getDate()));
-                        //console.log('today: '+ today);
-
-                        //If payment date is today and the month the email was sent was last month, archive the message
-                        if (generic_payment_day === today && month_sent_num === last_month) {
+                        //If the payment was processed today, archive the message
+                        if (payment_date === getDateToday()) {
                             bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
                                 if (err)
                                     console.log(err);
                                 console.log('Payment made: <' + subject + '>');
                             });
                         }
-                    }
 
+                        //If the date is in a generic payment days in the format 00/xx/0000
+                        else if (bdn30_patt_generic_date.test(payment_date)) {
+                            var generic_payment_day = payment_date.match(bdn30_patt_generic_date)[1];
+                            //console.log('generic payment day: ' + generic_payment_day);
+                            var today = addLeadingZero(new String(d.getDate()));
+                            //console.log('today: '+ today);
+
+                            //If payment date is today and the month the email was sent was last month, archive the message
+                            if (generic_payment_day === today && month_sent_num === last_month) {
+                                bdn30Imap.setFlags(message.attributes.uid, '\Deleted', function (err) {
+                                    if (err)
+                                        console.log(err);
+                                    console.log('Payment made: <' + subject + '>');
+                                });
+                            }
+                        }
+                    }
 
                 });
             });
@@ -403,14 +404,16 @@ function scanCorpCardChargeExpenseinGTE() {
                     var subject = message.header.subject.toString();
                     var date_sent = message.attributes.date.toString();
                     var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
+                    //console.log(date_sent_formatted);
 
                     var five_days_ago = new Date();
                     five_days_ago.setDate(five_days_ago.getDate() - 5);
                     five_days_ago = five_days_ago.toString();
                     //console.log('five days ago: ' + five_days_ago);
                     var five_days_ago_formatted = five_days_ago.match(corpcharge_patt_date_sent)[0];
+                    //console.log(five_days_ago_formatted);
 
-                    //If the alert was sent 3 days ago, then put it back in the inbox and mark it as unread
+                    //If the alert was sent 5 days ago, then put it back in the inbox and mark it as unread
                     if (five_days_ago_formatted === date_sent_formatted) {
                         console.log('New corp charge in GT&E: <' + subject + '>');
                         corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
