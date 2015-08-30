@@ -426,6 +426,13 @@ function scanCorpCardChargeExpenseinGTE() {
                                 console.log(err);
                         });
                     }
+                    ////moves all other corpchargecard messages to the inbox
+                    //else {
+                    //    corpcardchargeImap.copy(message.attributes.uid, 'INBOX', function (err) {
+                    //        if (err)
+                    //            console.log(err);
+                    //    });
+                    //}
 
                 });
             });
