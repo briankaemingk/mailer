@@ -1,11 +1,10 @@
 /**
- * Created by kaemibr on 8/14/2015.
+ * Created by kaemibr on 9/2/2015.
  */
 require('dotenv').load();
-var nodemailer = require('nodemailer');
 var xoauth2gen = require('xoauth2');
 var Imap = require('imap');
-var inspect = require('util').inspect;
+var nodemailer = require('nodemailer');
 var inboxImap;
 var bdn30Imap;
 var corpcardchargeImap;
@@ -27,20 +26,20 @@ transporter = nodemailer.createTransport({
     }
 });
 
+sendNextMonthsBills();
+
 //Get login token
 xoauth2gen.getToken(initializeImap);
 
-//Initialize imap objects
+//Initialize imap object
 function initializeImap(err, token) {
-    if (err) {
-        return console.log(err);
-    }
+    if (err) throw err;
     inboxImap = new Imap({
         xoauth2: token,
         host: 'imap.gmail.com',
         port: 993,
         tls: true,
-        keepalive: true
+        keepalive: false
     });
 
     bdn30Imap = new Imap({
@@ -48,7 +47,7 @@ function initializeImap(err, token) {
         host: 'imap.gmail.com',
         port: 993,
         tls: true,
-        keepalive: true
+        keepalive: false
     });
 
     corpcardchargeImap = new Imap({
@@ -56,8 +55,9 @@ function initializeImap(err, token) {
         host: 'imap.gmail.com',
         port: 993,
         tls: true,
-        keepalive: true
+        keepalive: false
     });
+
 
     //Set up initial inbox listeners
     inboxImap.connect();
@@ -65,6 +65,7 @@ function initializeImap(err, token) {
     inboxImap.once('error', function (err) {
         console.log(err);
     });
+
     inboxImap.once('end', function () {
         console.log('Connection ended');
     });
@@ -91,6 +92,24 @@ function initializeImap(err, token) {
 
 }
 
+//Send new bills if it's the right day of the month
+function sendNextMonthsBills() {
+    var d = new Date();
+    var today = addLeadingZero(new String(d.getDate()));
+    //console.log('today: ' + today);
+    //console.log(getDateToday());
+
+    if (today === process.env.CP1DATE) {
+        var subject = 'Notification: ' + getDateNextMonth() + ' - ' + '$' + process.env.CP1AMT + ' ' + process.env.CP1NAME + ' bill <bdn30>';
+        sendMail({subject: subject, body: ''});
+    }
+
+    if (today === process.env.CP2DATE) {
+        var subject = 'Notification: ' + getDateNextMonth() + ' - ' + '$' + process.env.CP2AMT + ' ' + process.env.CP2NAME + ' bill <bdn30>';
+        sendMail({subject: subject, body: ''});
+    }
+}
+
 //Checks if inbox has any messages in it.
 //If it does -> go through every message and looks for a FROM1 newly arrived bill
 //If it doesn't -> wait for new messages and go through those if they exist
@@ -103,19 +122,13 @@ function scanInboxforFROM1NewBill() {
 
             //LOGGED
             console.log(getDateAndTime() + '~ ' + box.messages.total + ' message in inbox on startup');
-
-            //Listen for new mail
-            inboxImap.once('mail', function (num) {
-                //LOGGED
-                console.log(getDateAndTime() + '~ ' + num + ' new message in inbox');
-                scanInboxforFROM1NewBill();
-            });
+            inboxImap.end();
         }
 
         //If the box has messages in it
         else {
 
-            ////DEBUG
+            //DEBUG
             //console.log(getDateAndTime() + '~ ' + box.messages.total + ' messages in inbox');
 
             //For every message in the inbox
@@ -188,19 +201,109 @@ function scanInboxforFROM1NewBill() {
             f.once('error', function (err) {
                 console.log('Fetch error: ' + err);
             });
-
-            f.once('end', function () {
-
-                inboxImap.once('mail', function (num) {
-                    //LOGGED
-                    console.log(getDateAndTime() + '~ ' + num + ' new message in inbox');
-                    scanInboxforFROM1NewBill();
-                });
-
-            });
+            inboxImap.end();
         }
     });
 
+}
+
+function scanCorpCardChargeExpenseinGTE() {
+    corpcardchargeImap.openBox('corpcardcharge', false, function (err, box) {
+        if (err) throw err;
+
+        //If the box is empty
+        if (box.messages.total === 0)
+            corpcardchargeImap.end();
+
+        //If the box has messages in it
+        else {
+
+            var messages = [];
+
+            //For every message in the inbox
+            var f = corpcardchargeImap.seq.fetch('1:' + box.messages.total, {
+                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)']
+                })
+                ;
+
+            f.on('message', function (msg, seqno) {
+                //console.log('Message #%d', seqno);
+                //var prefix = '(#' + seqno + ') ';
+                var message = {};
+
+                msg.on('body', function (stream, info) {
+                    var buffer = '', count = 0;
+                    var header;
+                    stream.on('data', function (chunk) {
+                        count += chunk.length;
+                        buffer += chunk.toString('utf8');
+                        //    if (info.which === 'TEXT')
+                        //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
+                    });
+                    stream.once('end', function () {
+                            if (info.which !== 'TEXT') {
+                                header = Imap.parseHeader(buffer);
+                                message.header = header;
+                            }
+                            else {
+                                message.body = buffer;
+                                //console.log(buffer);
+                            }
+                        }
+                    )
+                    ;
+                });
+                msg.once('attributes', function (attrs) {
+                    //console.log('Attributes: %s', inspect(attrs));
+                    message.attributes = attrs;
+                });
+                msg.once('end', function () {
+                    //console.log('Finished');
+
+                    //Matches a date sent pattern
+                    var corpcharge_patt_date_sent = /^[a-z]+ [a-z]+ [0-9]+ [0-9]+/i;
+                    var subject = message.header.subject.toString();
+                    var date_sent = message.attributes.date.toString();
+                    var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
+                    //console.log(date_sent_formatted);
+
+                    var five_days_ago = new Date();
+                    five_days_ago.setDate(five_days_ago.getDate() - 5);
+                    five_days_ago = five_days_ago.toString();
+                    //console.log('five days ago: ' + five_days_ago);
+                    var five_days_ago_formatted = five_days_ago.match(corpcharge_patt_date_sent)[0];
+                    //console.log(five_days_ago_formatted);
+
+                    //If the alert was sent five days ago, then put it back in the inbox and mark it as unread
+                    if (five_days_ago_formatted === date_sent_formatted) {
+                        console.log('New corp charge in GT&E: <' + subject + '>');
+                        corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
+                            if (err)
+                                console.log(err);
+                        });
+                        //Move to the inbox
+                        corpcardchargeImap.move(message.attributes.uid, 'INBOX', function (err) {
+                            if (err)
+                                console.log(err);
+                        });
+                    }
+                    ////moves all other corpchargecard messages to the inbox
+                    //else {
+                    //    corpcardchargeImap.copy(message.attributes.uid, 'INBOX', function (err) {
+                    //        if (err)
+                    //            console.log(err);
+                    //    });
+                    //}
+
+                });
+            });
+
+            f.once('error', function (err) {
+                console.log('Fetch error: ' + err);
+            });
+            corpcardchargeImap.end();
+        }
+    });
 }
 
 //Sweeps through the bdn30 mailbox, deleting the bdn30 label when the payment posted date is today
@@ -219,16 +322,8 @@ function scanbdn30forPaymentsMade() {
         //console.log('today: ' + today);
 
         //If the box is empty
-        if (box.messages.total === 0) {
-
-            //Listen for new mail
-            bdn30Imap.once('mail', function (num) {
-                //LOGGED
-                console.log(getDateAndTime() + '~ ' + num + ' new message in bdn30');
-                scanbdn30forPaymentsMade();
-            });
-
-        }
+        if (box.messages.total === 0)
+            bdn30Imap.end();
 
         //If the box has messages in it
         else {
@@ -330,139 +425,53 @@ function scanbdn30forPaymentsMade() {
             f.once('error', function (err) {
                 console.log('Fetch error: ' + err);
             });
-
-            f.once('end', function () {
-
-                //Listen for new message
-                bdn30Imap.once('mail', function (num) {
-                    //LOGGED
-                    console.log(getDateAndTime() + '~ ' + num + ' new message in bdn30');
-                    scanbdn30forPaymentsMade();
-                });
-
-            });
+            bdn30Imap.end();
         }
     });
 }
 
 
-function scanCorpCardChargeExpenseinGTE() {
-    corpcardchargeImap.openBox('corpcardcharge', false, function (err, box) {
-        if (err) throw err;
-
-        //If the box is empty
-        if (box.messages.total === 0) {
-
-            //Listen for new mail
-            corpcardchargeImap.once('mail', function (num) {
-                //LOGGED
-                console.log(getDateAndTime() + '~ ' + num + ' new message in corpcardcharge');
-                scanCorpCardChargeExpenseinGTE();
-            });
-
-        }
-
-        //If the box has messages in it
-        else {
-
-            var messages = [];
-
-            //For every message in the inbox
-            var f = corpcardchargeImap.seq.fetch('1:' + box.messages.total, {
-                    bodies: ['HEADER.FIELDS (TO FROM SUBJECT)']
-                })
-                ;
-
-            f.on('message', function (msg, seqno) {
-                //console.log('Message #%d', seqno);
-                //var prefix = '(#' + seqno + ') ';
-                var message = {};
-
-                msg.on('body', function (stream, info) {
-                    var buffer = '', count = 0;
-                    var header;
-                    stream.on('data', function (chunk) {
-                        count += chunk.length;
-                        buffer += chunk.toString('utf8');
-                        //    if (info.which === 'TEXT')
-                        //        console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
-                    });
-                    stream.once('end', function () {
-                            if (info.which !== 'TEXT') {
-                                header = Imap.parseHeader(buffer);
-                                message.header = header;
-                            }
-                            else {
-                                message.body = buffer;
-                                //console.log(buffer);
-                            }
-                        }
-                    )
-                    ;
-                });
-                msg.once('attributes', function (attrs) {
-                    //console.log('Attributes: %s', inspect(attrs));
-                    message.attributes = attrs;
-                });
-                msg.once('end', function () {
-                    //console.log('Finished');
-
-                    //Matches a date sent pattern
-                    var corpcharge_patt_date_sent = /^[a-z]+ [a-z]+ [0-9]+ [0-9]+/i;
-                    var subject = message.header.subject.toString();
-                    var date_sent = message.attributes.date.toString();
-                    var date_sent_formatted = date_sent.match(corpcharge_patt_date_sent)[0];
-                    //console.log(date_sent_formatted);
-
-                    var five_days_ago = new Date();
-                    five_days_ago.setDate(five_days_ago.getDate() - 5);
-                    five_days_ago = five_days_ago.toString();
-                    //console.log('five days ago: ' + five_days_ago);
-                    var five_days_ago_formatted = five_days_ago.match(corpcharge_patt_date_sent)[0];
-                    //console.log(five_days_ago_formatted);
-
-                    //If the alert was sent five days ago, then put it back in the inbox and mark it as unread
-                    if (five_days_ago_formatted === date_sent_formatted) {
-                        console.log('New corp charge in GT&E: <' + subject + '>');
-                        corpcardchargeImap.delFlags(message.attributes.uid, '\Seen', function (err) {
-                            if (err)
-                                console.log(err);
-                        });
-                        //Move to the inbox
-                        corpcardchargeImap.move(message.attributes.uid, 'INBOX', function (err) {
-                            if (err)
-                                console.log(err);
-                        });
-                    }
-                    ////moves all other corpchargecard messages to the inbox
-                    //else {
-                    //    corpcardchargeImap.copy(message.attributes.uid, 'INBOX', function (err) {
-                    //        if (err)
-                    //            console.log(err);
-                    //    });
-                    //}
-
-                });
-            });
-
-            f.once('error', function (err) {
-                console.log('Fetch error: ' + err);
-            });
-
-            f.once('end', function () {
-
-                //Listen for new mail
-                corpcardchargeImap.once('mail', function (num) {
-                    //LOGGED
-                    console.log(getDateAndTime() + '~ ' + num + ' new message in corpcardcharge');
-                    scanCorpCardChargeExpenseinGTE();
-                });
-
-            });
-        }
-    });
+function addLeadingZero(string) {
+    if (string.length === 1)
+        string = "0" + string;
+    return string;
 }
 
+function getDateAndTime() {
+    var d = (new Date()).toString();
+    var date_time_patt = /.+ .+ .+ .+ [0-9]{2}:[0-9]{2}/;
+    d = d.match(date_time_patt)[0];
+    return d;
+}
+
+
+function getDateToday() {
+//new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
+    var d = new Date();
+    //console.log(d.getMonth());
+    var month = addLeadingZero(new String(d.getMonth() + 1));
+    var day = addLeadingZero(new String(d.getDate()));
+
+    var date_string = month + '/' + day + '/' + d.getFullYear();
+    return date_string;
+}
+
+function getDateNextMonth() {
+//new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
+    var d = new Date();
+    //console.log(d.getMonth());
+    var month = addLeadingZero(new String(d.getMonth() + 2));
+    var day = addLeadingZero(new String(d.getDate()));
+
+    var date_string = month + '/' + day + '/' + d.getFullYear();
+    return date_string;
+}
+
+function convertMonthNameToNumber(monthName) {
+    var myDate = new Date(monthName + " 1, 2000");
+    var monthDigit = myDate.getMonth();
+    return isNaN(monthDigit) ? 0 : (monthDigit + 1);
+}
 
 //Takes a message object with a subject:"" and body:"" and sends the messsage from and to USER
 function sendMail(message) {
@@ -480,34 +489,4 @@ function sendMail(message) {
         }
         console.log('Message sent: <' + mail_opts.subject + '>');
     });
-}
-
-function getDateToday() {
-//new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
-    var d = new Date();
-    //console.log(d.getMonth());
-    var month = addLeadingZero(new String(d.getMonth() + 1));
-    var day = addLeadingZero(new String(d.getDate()));
-
-    var date_string = month + '/' + day + '/' + d.getFullYear();
-    return date_string;
-}
-
-function addLeadingZero(string) {
-    if (string.length === 1)
-        string = "0" + string;
-    return string;
-}
-
-function convertMonthNameToNumber(monthName) {
-    var myDate = new Date(monthName + " 1, 2000");
-    var monthDigit = myDate.getMonth();
-    return isNaN(monthDigit) ? 0 : (monthDigit + 1);
-}
-
-function getDateAndTime() {
-    var d = (new Date()).toString();
-    var date_time_patt = /.+ .+ .+ .+ [0-9]{2}:[0-9]{2}/;
-    d = d.match(date_time_patt)[0];
-    return d;
 }
