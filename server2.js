@@ -157,12 +157,13 @@ function scanInboxforFROM1NewBill() {
 
                     //Matches anything that starts with "Notification - Your " and ends with " bill has arrived"
                     var from1_patt_sub_bill_arrived = /^Notification - Your (.*)(?= bill has arrived)/;
-                    //Finds the dollar amount and the due date of the payment
-                    var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9\/]+)/;
-
                     //if the message is from:FROM1
                     // AND the subject matches a string that starts with: "Notification - Your " and ends with " bill has arrived"
                     // AND the body has a scheduled payment amount
+
+                    //Finds the dollar amount and the due date of the payment
+                    var from1_patt_body = /Your payment for (\$[0-9,.]+) from CHECKING is scheduled for ([0-9]+\/[0-9]+\/[0-9]+)/;
+
                     if (process.env.FROM1 === message.header.from.toString()
                         && from1_patt_sub_bill_arrived.test(message.header.subject.toString())
                         && from1_patt_body.test(message.body)
@@ -178,8 +179,15 @@ function scanInboxforFROM1NewBill() {
                         var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
                         var bill_amount = message.body.match(from1_patt_body)[1];
                         var payment_date = message.body.match(from1_patt_body)[2];
+
+                        //Find the bill due date
+                        var from1_patt_body_2 = /Bill due by:\s+([0-9\/]+)/;
+
+                        var bill_due_date = message.body.match(from1_patt_body_2)[1];
+                        //console.log('bill due: ' + bill_due_date);
+
                         //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                        var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
+                        var subject = 'Notification: ' + bill_due_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
                         sendMail({subject: subject, body: message.body});
                     }
                 });

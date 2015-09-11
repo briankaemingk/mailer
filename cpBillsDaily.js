@@ -191,8 +191,15 @@ function scanInboxforFROM1NewBill() {
                         var bank = message.header.subject.toString().match(from1_patt_sub_bill_arrived)[1];
                         var bill_amount = message.body.match(from1_patt_body)[1];
                         var payment_date = message.body.match(from1_patt_body)[2];
+
+                        //Find the bill due date
+                        var from1_patt_body_2 = /Bill due by:\s+([0-9\/]+)/;
+
+                        var bill_due_date = message.body.match(from1_patt_body_2)[1];
+                        //console.log('bill due: ' + bill_due_date);
+
                         //console.log('bill amt '+ bill_amount + ' payment date ' + payment_date);
-                        var subject = 'Notification: ' + payment_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
+                        var subject = 'Notification: ' + bill_due_date + ' - ' + bill_amount + ' ' + bank + ' bill <bdn30>';
                         sendMail({subject: subject, body: message.body});
                     }
                 });
