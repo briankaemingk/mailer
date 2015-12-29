@@ -95,11 +95,13 @@ function initializeImap(err, token) {
 //Send new bills if it's the right day of the month
 function sendNextMonthsBills() {
     var d = new Date();
-    var today = addLeadingZero(new String(d.getDate()));
-    //console.log('today: ' + today);
+    var today = addLeadingZero(new String(d.getDate())).toString();
+    //console.log('today: ' + today + typeof today );
+    //console.log('CP1date: ' + process.env.CP1DATE + typeof process.env.CP1DATE);
     //console.log(getDateToday());
 
     if (today === process.env.CP1DATE) {
+        console.log("today===CP1Date");
         var subject = 'Notification: ' + getDateNextMonth() + ' - ' + '$' + process.env.CP1AMT + ' ' + process.env.CP1NAME + ' bill <bdn30>';
         sendMail({subject: subject, body: ''});
     }
@@ -464,13 +466,18 @@ function getDateToday() {
 }
 
 function getDateNextMonth() {
-//new Date(year, month[, day[, hour[, minutes[, sec onds[, milliseconds]]]]]);
-    var d = new Date();
-    //console.log(d.getMonth());
-    var month = addLeadingZero(new String(d.getMonth() + 2));
-    var day = addLeadingZero(new String(d.getDate()));
 
-    var date_string = month + '/' + day + '/' + d.getFullYear();
+    var now = new Date();
+    if (now.getMonth() == 11) {
+        var nextMonth = new Date(now.getFullYear() + 1, 0, now.getDate());
+    } else {
+        var nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    }
+
+    var month = addLeadingZero(new String(nextMonth.getMonth()+1));
+    var day = addLeadingZero(new String(nextMonth.getDate()));
+
+    var date_string = month + '/' + day + '/' + nextMonth.getFullYear();
     return date_string;
 }
 
